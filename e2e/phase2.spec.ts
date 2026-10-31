@@ -89,7 +89,7 @@ test('Tabs anlegen, umbenennen, ausblenden', async ({ page }) => {
 	await page.getByRole('button', { name: 'Layout bearbeiten' }).click();
 	await page.locator('nav').getByRole('button', { name: 'Tab', exact: true }).click();
 	const names = page.locator('nav').getByLabel('Tabname');
-	await expect(names).toHaveCount(6);
+	await expect(names).toHaveCount(7);
 	await names.last().fill('Begleiter');
 	await page.getByRole('button', { name: 'Baustein hinzufügen' }).click();
 	await page.getByRole('dialog').getByRole('button', { name: /^Textblock/ }).click();
@@ -98,7 +98,7 @@ test('Tabs anlegen, umbenennen, ausblenden', async ({ page }) => {
 	await expect(tabButton(page, 'Begleiter')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Layout bearbeiten' }).click();
-	const notes = page.locator('nav .tab-edit').nth(4);
+	const notes = page.locator('nav .tab-edit').nth(5);
 	await expect(notes.getByLabel('Tabname')).toHaveValue('Notizen');
 	await notes.getByRole('button', { name: 'Ausblenden' }).click();
 	await page.getByRole('button', { name: 'Layout bearbeiten' }).click();

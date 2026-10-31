@@ -11,6 +11,9 @@ import type {
 	Modifier,
 	Operation,
 	ProficiencyLevel,
+	ActionKind,
+	ActionStats,
+	CharAction,
 	Spell,
 	SpellList,
 	TextNote
@@ -309,6 +312,12 @@ function sourceCleanup(kind: 'item' | 'ability', id: Id, counterId?: Id): Change
 		if (m.source.kind === kind && m.source.id === id) changes.push({ path: ['modifiers', m.id], value: undefined });
 	}
 	if (counterId && c.counters[counterId]) changes.push({ path: ['counters', counterId], value: undefined });
+	// Aktionen der Quelle verschwinden mit ihr (samt ihren Nutzungs-Kästchen).
+	for (const a of Object.values(c.actions ?? {})) {
+		if (a.source?.kind !== kind || a.source.id !== id) continue;
+		changes.push({ path: ['actions', a.id], value: undefined });
+		if (a.counterId && c.counters[a.counterId]) changes.push({ path: ['counters', a.counterId], value: undefined });
+	}
 	return changes;
 }
 
@@ -588,13 +597,16 @@ export function deleteCounter(id: Id) {
 	const changes: Change[] = [{ path: ['counters', id], value: undefined }];
 	for (const a of Object.values(c.abilities)) if (a.counterId === id) changes.push({ path: ['abilities', a.id, 'counterId'], value: undefined });
 	for (const i of Object.values(c.items)) if (i.counterId === id) changes.push({ path: ['items', i.id, 'counterId'], value: undefined });
+	for (const a of Object.values(c.actions ?? {})) if (a.counterId === id) changes.push({ path: ['actions', a.id, 'counterId'], value: undefined });
 	sheet.commit({ kind: 'counter.delete', target: id, title: `Zähler gelöscht: ${ct.name}`, changes });
 }
 
 /** Nutzungs-Kästchen an einer Fähigkeit, einem Zustand oder Item. */
-export function addUsageCounter(owner: { kind: 'ability' | 'item'; id: Id }, max: number) {
+const OWNER_RECORD = { ability: 'abilities', item: 'items', action: 'actions' } as const;
+
+export function addUsageCounter(owner: { kind: 'ability' | 'item' | 'action'; id: Id }, max: number) {
 	const c = current();
-	const src = owner.kind === 'ability' ? c.abilities[owner.id] : c.items[owner.id];
+	const src = owner.kind === 'ability' ? c.abilities[owner.id] : owner.kind === 'item' ? c.items[owner.id] : c.actions[owner.id];
 	if (!src || src.counterId) return;
 	const id = newId();
 	const counter: Counter = { id, name: `Nutzungen: ${src.name}`, max, checked: 0, order: nextOrder(c.counters), group: 'Nutzungen' };
@@ -604,7 +616,7 @@ export function addUsageCounter(owner: { kind: 'ability' | 'item'; id: Id }, max
 		title: `Nutzungs-Kästchen: ${src.name}`,
 		changes: [
 			{ path: ['counters', id], value: counter },
-			{ path: [owner.kind === 'ability' ? 'abilities' : 'items', owner.id, 'counterId'], value: id }
+			{ path: [OWNER_RECORD[owner.kind], owner.id, 'counterId'], value: id }
 		]
 	});
 }
@@ -671,7 +683,7 @@ export function addSpell(input: { name: string; level?: number }, listId?: Id): 
 	return id;
 }
 
-type SpellKey = 'name' | 'level' | 'school' | 'castingTime' | 'range' | 'components' | 'duration' | 'description' | 'tags' | 'concentration' | 'ritual' | 'notes';
+type SpellKey = 'name' | 'level' | 'school' | 'castingTime' | 'range' | 'components' | 'duration' | 'description' | 'tags' | 'concentration' | 'ritual' | 'notes' | 'economy';
 
 export function updateSpell<K extends SpellKey>(id: Id, key: K, value: Spell[K]) {
 	const s = current().spells[id];
@@ -698,7 +710,8 @@ export const SPELL_PROP_LABEL: Record<SpellKey, string> = {
 	tags: 'Tags',
 	concentration: 'Konzentration',
 	ritual: 'Ritual',
-	notes: 'Notizen'
+	notes: 'Notizen',
+	economy: 'Art in der Aktionsübersicht'
 };
 
 export function deleteSpell(id: Id) {
@@ -766,6 +779,7 @@ export function applyImport(plan: ImportPlan, spellListId?: Id) {
 	for (const x of plan.abilities) changes.push({ path: ['abilities', x.id], value: x });
 	for (const x of plan.spells) changes.push({ path: ['spells', x.id], value: x });
 	for (const x of plan.modifiers) changes.push({ path: ['modifiers', x.id], value: x });
+	for (const x of plan.actions) changes.push({ path: ['actions', x.id], value: x });
 	const list = spellListId ? c.spellLists[spellListId] : undefined;
 	if (list && plan.spells.length) {
 		changes.push({ path: ['spellLists', list.id, 'spellIds'], value: [...list.spellIds, ...plan.spells.map((s) => s.id)] });
@@ -807,4 +821,84 @@ export function applyBackground(plan: BackgroundPlan, name: string) {
 	if (plan.goldDelta && gold) changes.push({ path: ['fields', gold.id, 'base'], value: gold.base + plan.goldDelta });
 	if (plan.notesAppend) changes.push({ path: ['texts', plan.notesAppend.textId, 'content'], value: plan.notesAppend.content });
 	sheet.commit({ kind: 'assistant.background', target: c.id, title: `Hintergrund eingetragen: ${name || 'Hintergrund'}`, changes });
+}
+
+/** Angriff, Schaden oder Rettungswurf eines Zaubers für die Aktionsübersicht. */
+export function updateSpellStat(id: Id, key: keyof ActionStats, value: string) {
+	const s = current().spells[id];
+	if (!s) return;
+	sheet.commit({
+		kind: `spell.stats.${key}`,
+		target: id,
+		title: `${s.name}: ${ACTION_STAT_LABEL[key]}`,
+		changes: [{ path: ['spells', id, 'stats', key], value: value.trim() ? value : undefined }],
+		coalesce: true
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Aktionen, Bonusaktionen, Reaktionen
+
+export const ACTION_STAT_LABEL: Record<keyof ActionStats, string> = {
+	attack: 'Angriff',
+	damage: 'Schaden',
+	damageType: 'Schadensart',
+	saveDc: 'Rettungswurf-SG',
+	saveAbility: 'Rettungswurf-Attribut'
+};
+
+export function addAction(input: { name: string; kind: ActionKind; source?: CharAction['source']; attack?: string; damage?: string }): Id {
+	const c = current();
+	const id = newId();
+	const action: CharAction = {
+		id,
+		name: input.name.trim() || 'Neue Aktion',
+		kind: input.kind,
+		description: '',
+		order: nextOrder(c.actions ?? {}),
+		...(input.source ? { source: input.source } : {}),
+		...(input.attack?.trim() ? { attack: input.attack } : {}),
+		...(input.damage?.trim() ? { damage: input.damage } : {})
+	};
+	sheet.commit({ kind: 'action.add', target: id, title: `Aktion angelegt: ${action.name}`, changes: [{ path: ['actions', id], value: action }] });
+	return id;
+}
+
+type ActionKey = 'name' | 'kind' | 'description' | 'range' | 'trigger' | keyof ActionStats;
+
+export function updateAction<K extends ActionKey>(id: Id, key: K, value: CharAction[K]) {
+	const a = current().actions[id];
+	if (!a) return;
+	const label: Record<ActionKey, string> = {
+		name: 'Name',
+		kind: 'Art',
+		description: 'Beschreibung',
+		range: 'Reichweite',
+		trigger: 'Auslöser',
+		...ACTION_STAT_LABEL
+	};
+	const empty = value === '' && key !== 'name' && key !== 'description';
+	sheet.commit({
+		kind: `action.${key}`,
+		target: id,
+		title: `${a.name}: ${label[key]}`,
+		changes: [{ path: ['actions', id, key], value: empty ? undefined : value }],
+		coalesce: key !== 'kind'
+	});
+}
+
+/** Quelle ändern: frei, an einem Item oder an einer Fähigkeit. */
+export function setActionSource(id: Id, source: CharAction['source'] | undefined) {
+	const a = current().actions[id];
+	if (!a) return;
+	sheet.commit({ kind: 'action.source', target: id, title: `${a.name}: Quelle`, changes: [{ path: ['actions', id, 'source'], value: source }] });
+}
+
+export function deleteAction(id: Id) {
+	const c = current();
+	const a = c.actions[id];
+	if (!a) return;
+	const changes: Change[] = [{ path: ['actions', id], value: undefined }];
+	if (a.counterId && c.counters[a.counterId]) changes.push({ path: ['counters', a.counterId], value: undefined });
+	sheet.commit({ kind: 'action.delete', target: id, title: `Aktion gelöscht: ${a.name}`, changes });
 }

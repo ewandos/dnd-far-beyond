@@ -1,6 +1,9 @@
 <script lang="ts">
 	// Zauberkarte: alle Angaben, Beschreibung, Zugehörigkeit zu Zauberlisten.
-	import { addAbility, deleteSpell, setSpellInList, spellLevelLabel, updateSpell } from '$lib/store/actions';
+	import { addAbility, deleteSpell, setSpellInList, spellLevelLabel, updateSpell, updateSpellStat } from '$lib/store/actions';
+	import { ACTION_KIND_SINGULAR, ACTION_KINDS, economyFromCastingTime, resolveStats } from '$lib/engine/actions';
+	import type { Spell } from '$lib/engine/types';
+	import FormulaInput from '../components/FormulaInput.svelte';
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { ui } from '$lib/store/ui.svelte';
 	import Icon from '../components/Icon.svelte';
@@ -12,6 +15,7 @@
 	const s = $derived(c.spells[id]);
 	const lists = $derived(Object.values(c.spellLists).sort((a, b) => a.order - b.order));
 	let confirmDelete = $state(false);
+	const stats = $derived(s && sheet.evaluation ? resolveStats(c, sheet.evaluation, s.stats ?? {}) : {});
 
 	const SCHOOLS = ['Bannmagie', 'Beschwörung', 'Erkenntnismagie', 'Hervorrufung', 'Illusion', 'Nekromantie', 'Verwandlung', 'Verzauberung'];
 	const PROPS = [
@@ -90,6 +94,41 @@
 			<MarkdownEditor value={s.description} onchange={(v) => updateSpell(id, 'description', v)} placeholder="Markdown: **fett**, *kursiv*, - Listen …" />
 		</section>
 
+		<section class="combat">
+			<span class="eyebrow">In der Aktionsübersicht</span>
+			<select
+				class="select"
+				aria-label="Art in der Aktionsübersicht"
+				value={s.economy ?? ''}
+				onchange={(e) => updateSpell(id, 'economy', ((e.currentTarget as HTMLSelectElement).value || undefined) as Spell['economy'])}
+			>
+				<option value="">automatisch aus Zeitaufwand ({ACTION_KIND_SINGULAR[economyFromCastingTime(s.castingTime)]})</option>
+				{#each ACTION_KINDS as k (k)}<option value={k}>{ACTION_KIND_SINGULAR[k]}</option>{/each}
+				<option value="none">nicht aufführen</option>
+			</select>
+			<div class="grid">
+				<label>
+					<span class="eyebrow">Angriffsbonus {#if stats.attack}<strong class="val">{stats.attack.text}</strong>{/if}</span>
+					<FormulaInput value={s.stats?.attack ?? ''} onchange={(v) => updateSpellStat(id, 'attack', v)} placeholder="z. B. @Zauberangriffsbonus" label="Angriffsbonus" />
+				</label>
+				<label>
+					<span class="eyebrow">Schaden {#if stats.damage}<strong class="val">{stats.damage.text}</strong>{/if}</span>
+					<FormulaInput value={s.stats?.damage ?? ''} onchange={(v) => updateSpellStat(id, 'damage', v)} placeholder="z. B. 8d6" label="Schaden" kind="dice" />
+				</label>
+				<label>
+					<span class="eyebrow">Schadensart</span>
+					<input class="input" value={s.stats?.damageType ?? ''} placeholder="z. B. Feuer" oninput={(e) => updateSpellStat(id, 'damageType', (e.currentTarget as HTMLInputElement).value)} />
+				</label>
+				<label>
+					<span class="eyebrow">Rettungswurf {#if stats.save}<strong class="val">{stats.save.text}</strong>{/if}</span>
+					<div class="save">
+						<FormulaInput value={s.stats?.saveDc ?? ''} onchange={(v) => updateSpellStat(id, 'saveDc', v)} placeholder="@Zauber-SG" label="Rettungswurf-SG" preview={false} />
+						<input class="input attr" value={s.stats?.saveAbility ?? ''} placeholder="GES" aria-label="Rettungswurf-Attribut" oninput={(e) => updateSpellStat(id, 'saveAbility', (e.currentTarget as HTMLInputElement).value)} />
+					</div>
+				</label>
+			</div>
+		</section>
+
 		<section>
 			<span class="eyebrow">In Zauberlisten</span>
 			<div class="lists">
@@ -149,6 +188,29 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
+	}
+	.combat {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.combat .grid label {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.save {
+		display: flex;
+		gap: 6px;
+	}
+	.save .attr {
+		width: 70px;
+	}
+	.val {
+		margin-left: 6px;
+		color: var(--accent);
+		letter-spacing: 0;
+		text-transform: none;
 	}
 	.flags {
 		display: flex;

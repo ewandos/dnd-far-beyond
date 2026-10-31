@@ -14,7 +14,8 @@ export const DEFAULT_SIZE: Record<BlockType, { w: number; h: number }> = {
 	counter: { w: 4, h: 4 },
 	container: { w: 6, h: 8 },
 	cardList: { w: 6, h: 6 },
-	text: { w: 6, h: 6 }
+	text: { w: 6, h: 6 },
+	actions: { w: 12, h: 12 }
 };
 
 /** Überschrift im Rahmen. `null` = Baustein zeichnet seine Überschrift selbst. */
@@ -35,5 +36,7 @@ export function blockTitle(c: Character, b: Block): string | null {
 		}
 		case 'text':
 			return b.title || c.texts[(b.config as unknown as TextBlockConfig).textId]?.title || 'Notiz';
+		case 'actions':
+			return b.title || null;
 	}
 }

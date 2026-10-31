@@ -1,6 +1,9 @@
 <script lang="ts">
 	// Item, Fähigkeit oder Zustand: Karte mit Beschreibung und Modifikatoren samt Zielfeldern.
+	import { ACTION_KIND_SINGULAR, ACTION_KINDS } from '$lib/engine/actions';
+	import type { ActionKind } from '$lib/engine/types';
 	import {
+		addAction,
 		addUsageCounter,
 		deleteAbility,
 		deleteCounter,
@@ -46,6 +49,12 @@
 	const noun = $derived(item ? 'Item' : ability ? KIND_LABEL[ability.kind] : '');
 
 	let adding = $state(false);
+	let newActionKind = $state<ActionKind>('action');
+	const attached = $derived(
+		Object.values(c.actions ?? {})
+			.filter((a) => a.source?.kind === kind && a.source.id === id)
+			.sort((a, b) => a.order - b.order)
+	);
 	let confirmDelete = $state(false);
 	$effect(() => {
 		void id;
@@ -156,6 +165,30 @@
 					<button type="button" class="btn" onclick={() => (adding = true)}><Icon name="plus" size={18} /> Modifikator hinzufügen</button>
 				</div>
 			{/if}
+		</section>
+
+		<section class="mods">
+			<h3 class="section-title">Aktionen</h3>
+			{#each attached as act (act.id)}
+				<button type="button" class="action-link" onclick={() => ui.push({ kind: 'action', id: act.id })}>
+					<span class="kind-tag">{ACTION_KIND_SINGULAR[act.kind]}</span>
+					<span>{act.name}</span>
+				</button>
+			{/each}
+			{#if !attached.length}<p class="empty">Keine – z. B. „Angriff“ bei einer Waffe.</p>{/if}
+			<div class="add-action">
+				<select class="select" bind:value={newActionKind} aria-label="Art der neuen Aktion">
+					{#each ACTION_KINDS as k (k)}<option value={k}>{ACTION_KIND_SINGULAR[k]}</option>{/each}
+				</select>
+				<button
+					type="button"
+					class="btn"
+					onclick={() => {
+						const aid = addAction({ name: item ? `Angriff: ${source.name}` : source.name, kind: newActionKind, source: { kind, id } });
+						ui.push({ kind: 'action', id: aid });
+					}}><Icon name="plus" size={18} /> Aktion hinzufügen</button
+				>
+			</div>
 		</section>
 
 		<section>
@@ -274,6 +307,36 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+	.action-link {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-height: 40px;
+		padding: 0;
+		border: none;
+		border-bottom: 1px solid var(--border);
+		background: none;
+		text-align: left;
+		font-weight: 500;
+	}
+	.action-link:hover {
+		color: var(--accent);
+	}
+	.kind-tag {
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--accent);
+		min-width: 92px;
+	}
+	.add-action {
+		display: flex;
+		gap: 8px;
+	}
+	.add-action .select {
+		width: 160px;
 	}
 	.usage {
 		display: flex;

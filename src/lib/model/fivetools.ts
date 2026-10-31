@@ -377,8 +377,28 @@ function convertItem(raw: Json): ContentEntry {
 	if (body) parts.push(body);
 	if (it._copy) parts.push('*Hinweis: In 5eTools eine Variante eines anderen Eintrags – Details ggf. aus dem Original ergänzen.*');
 
+	// Waffen bekommen eine Angriffsaktion mit Schadenswürfel. Den Angriffsbonus trägt der Spieler
+	// selbst ein (z. B. @STR-Mod + @Übungsbonus) – das ist Regelwissen und gehört nicht in den Import.
+	const weapon = !!it.dmg1 || ['M', 'R'].includes(type) || !!it.weapon;
+	const actions = weapon
+		? [
+				{
+					action: {
+						id: `5et:item:${it.name}|${it.source ?? ''}:attack`,
+						name: `Angriff: ${it.name}`,
+						kind: 'action' as const,
+						description: '',
+						...(it.dmg1 ? { damage: String(it.dmg1) } : {}),
+						...(it.dmgType ? { damageType: DAMAGE[String(it.dmgType)] ?? String(it.dmgType) } : {}),
+						...(it.range ? { range: `${it.range} ft.` } : {})
+					}
+				}
+			]
+		: undefined;
+
 	return {
 		type: 'item',
+		...(actions ? { actions } : {}),
 		item: {
 			id: `5et:item:${it.name}|${it.source ?? ''}`,
 			name: String(it.name),

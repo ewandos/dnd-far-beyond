@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Baustein hinzufügen oder einstellen.
 	import { untrack } from 'svelte';
-	import type { Block, BlockType, CardListKind } from '$lib/engine/types';
+	import type { ActionKind, Block, BlockType, CardListKind } from '$lib/engine/types';
+	import { ACTION_KIND_LABEL, ACTION_KINDS } from '$lib/engine/actions';
 	import { addContainer, addSpellList, addText, renameSpellList } from '$lib/store/actions';
 	import { addBlock, BLOCK_LABEL, updateBlock } from '$lib/store/layoutActions';
 	import { sheet } from '$lib/store/sheet.svelte';
@@ -20,7 +21,8 @@
 		{ type: 'counter', text: 'Kästchen zum Ankreuzen, z. B. Zauberplätze oder Trefferwürfel.' },
 		{ type: 'container', text: 'Ein Inventar-Container mit Inhalt, z. B. Rucksack.' },
 		{ type: 'cardList', text: 'Fähigkeiten, Zustände, ausgerüstete Items oder eine Zauberliste.' },
-		{ type: 'text', text: 'Markdown-Notizen, z. B. Hintergrund oder Beziehungen.' }
+		{ type: 'text', text: 'Markdown-Notizen, z. B. Hintergrund oder Beziehungen.' },
+		{ type: 'actions', text: 'Aktionen, Bonusaktionen, Reaktionen und Sonstiges – aus Items, Fähigkeiten und Zaubern.' }
 	];
 
 	let type = $state<BlockType | null>(null);
@@ -52,7 +54,8 @@
 			counter: { group: counterGroups[0] ?? '' },
 			container: { containerId: firstContainer?.id ?? '' },
 			cardList: { kind: 'ability' },
-			text: { textId: firstText?.id ?? '' }
+			text: { textId: firstText?.id ?? '' },
+			actions: { spellListIds: spellLists.slice(0, 1).map((l) => l.id), showStandard: true }
 		};
 		cfg = defaults[t];
 		source = 'group';
@@ -210,6 +213,28 @@
 					{#if cfg.kind !== 'equipped'}
 						<label class="check"><input type="checkbox" checked={!!cfg.showDescriptions} onchange={(e) => (cfg.showDescriptions = (e.currentTarget as HTMLInputElement).checked || undefined)} /> Beschreibungen anzeigen</label>
 					{/if}
+				{:else if type === 'actions'}
+					{@const kinds = (cfg.kinds as ActionKind[] | undefined) ?? []}
+					{@const listIds = (cfg.spellListIds as string[] | undefined) ?? []}
+					<fieldset class="row">
+						<span class="eyebrow">Arten (keine Auswahl = alle)</span>
+						<div class="inline-checks">
+							{#each ACTION_KINDS as k (k)}
+								<label class="check"><input type="checkbox" checked={kinds.includes(k)} onchange={(e) => (cfg.kinds = (e.currentTarget as HTMLInputElement).checked ? [...kinds, k] : kinds.filter((x) => x !== k))} /> {ACTION_KIND_LABEL[k]}</label>
+							{/each}
+						</div>
+					</fieldset>
+					<fieldset class="row">
+						<span class="eyebrow">Zauber aus diesen Listen aufnehmen</span>
+						<div class="inline-checks">
+							{#each spellLists as l (l.id)}
+								<label class="check"><input type="checkbox" checked={listIds.includes(l.id)} onchange={(e) => (cfg.spellListIds = (e.currentTarget as HTMLInputElement).checked ? [...listIds, l.id] : listIds.filter((x) => x !== l.id))} /> {l.name}</label>
+							{/each}
+							{#if !spellLists.length}<span class="muted small">Keine Zauberlisten.</span>{/if}
+						</div>
+					</fieldset>
+					<label class="check"><input type="checkbox" checked={cfg.showStandard !== false} onchange={(e) => (cfg.showStandard = (e.currentTarget as HTMLInputElement).checked)} /> Allgemeine Aktionen zeigen (Spurt, Ausweichen …)</label>
+					<label class="check"><input type="checkbox" checked={!!cfg.hideInactive} onchange={(e) => (cfg.hideInactive = (e.currentTarget as HTMLInputElement).checked || undefined)} /> Nicht verfügbare ausblenden (z. B. Items im Rucksack)</label>
 				{:else if type === 'text'}
 					<label class="row"><span class="eyebrow">Notiz</span>
 						<select class="select" value={cfg.textId as string} onchange={(e) => (cfg.textId = (e.currentTarget as HTMLSelectElement).value)}>
@@ -315,6 +340,16 @@
 	.new {
 		display: flex;
 		gap: 8px;
+	}
+	fieldset.row {
+		border: none;
+		margin: 0;
+		padding: 0;
+	}
+	.inline-checks {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 16px;
 	}
 	.picklist {
 		display: flex;
