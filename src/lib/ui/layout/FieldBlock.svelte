@@ -24,7 +24,7 @@
 	<div class="tile" class:stepper={config.stepper}>
 		<span class="label">{title || field.name}</span>
 		<FieldValue id={field.id} size="xl" />
-		{#if config.stepper}
+		{#if config.stepper && (field.type ?? 'number') === 'number'}
 			<div class="steps">
 				<button type="button" class="btn" aria-label="{field.name} verringern" onclick={() => step(-1)}><Icon name="minus" /></button>
 				<input

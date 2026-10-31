@@ -13,6 +13,8 @@
 	import LayoutGrid from './layout/LayoutGrid.svelte';
 	import ExportDialog from './content/ExportDialog.svelte';
 	import ImportDialog from './content/ImportDialog.svelte';
+	import BackgroundDialog from './assistants/BackgroundDialog.svelte';
+	import PointBuyDialog from './assistants/PointBuyDialog.svelte';
 	import Fields from './tabs/Fields.svelte';
 	import History from './tabs/History.svelte';
 
@@ -168,6 +170,8 @@
 <DragGhost />
 {#if ui.dialog === 'import'}<ImportDialog onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.dialog === 'export'}<ExportDialog onclose={() => (ui.dialog = null)} />{/if}
+{#if ui.dialog === 'pointbuy'}<PointBuyDialog onclose={() => (ui.dialog = null)} />{/if}
+{#if ui.dialog === 'background'}<BackgroundDialog onclose={() => (ui.dialog = null)} />{/if}
 
 <style>
 	.sheet {
@@ -234,8 +238,13 @@
 		color: var(--accent);
 	}
 	.tabs {
+		position: sticky;
+		top: var(--header-h);
+		z-index: 19;
+		background: var(--bg);
 		display: flex;
 		gap: 2px;
+		min-height: var(--tabs-h);
 		padding: 8px 16px 0;
 		border-bottom: 1px solid var(--border);
 	}
@@ -274,6 +283,7 @@
 		font-weight: 700;
 	}
 	.tabs.editing {
+		position: static;
 		background: var(--accent-soft);
 		padding-bottom: 6px;
 		align-items: center;

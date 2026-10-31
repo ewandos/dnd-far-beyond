@@ -65,7 +65,8 @@
 	.drawer {
 		position: fixed;
 		z-index: 40;
-		top: var(--header-h);
+		/* unterhalb von Kopfzeile und Tabs, damit beide bedienbar bleiben */
+		top: calc(var(--header-h) + var(--tabs-h));
 		right: 0;
 		bottom: 0;
 		width: 440px;

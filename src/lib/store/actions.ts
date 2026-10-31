@@ -16,7 +16,8 @@ import type {
 	TextNote
 } from '$lib/engine/types';
 import { formatOp } from '$lib/ui/format';
-import { GROUPS } from '$lib/model/defaults';
+import { GROUPS, STD, type AttributeKey } from '$lib/model/defaults';
+import type { BackgroundPlan } from '$lib/model/background';
 import type { ImportPlan } from '$lib/model/content';
 import { newId } from '$lib/model/ids';
 import { current, sheet, type Change } from './sheet.svelte';
@@ -59,6 +60,33 @@ export function setFieldBase(id: Id, value: number) {
 	});
 }
 
+export function setFieldDiceBase(id: Id, value: string) {
+	const f = current().fields[id];
+	if (!f) return;
+	sheet.commit({
+		kind: 'field.diceBase',
+		target: id,
+		title: f.name,
+		before: f.diceBase ?? '',
+		after: value,
+		changes: [{ path: ['fields', id, 'diceBase'], value }],
+		coalesce: true
+	});
+}
+
+export function setFieldListBase(id: Id, value: string[]) {
+	const f = current().fields[id];
+	if (!f) return;
+	sheet.commit({
+		kind: 'field.listBase',
+		target: id,
+		title: f.name,
+		before: (f.listBase ?? []).join(', '),
+		after: value.join(', '),
+		changes: [{ path: ['fields', id, 'listBase'], value }]
+	});
+}
+
 const FIELD_PROP_TITLES: Partial<Record<keyof Field, string>> = {
 	name: 'Feld umbenannt',
 	notes: 'Notiz',
@@ -81,14 +109,17 @@ export function updateField<K extends 'name' | 'notes' | 'group' | 'hidden' | 'f
 	});
 }
 
-export function addField(input: { name: string; group?: string; base?: number }): Id {
+export function addField(input: { name: string; group?: string; base?: number; type?: Field['type']; diceBase?: string; listBase?: string[] }): Id {
 	const c = current();
 	const id = newId();
+	const type = input.type ?? 'number';
 	const field: Field = {
 		id,
 		name: input.name.trim() || 'Neues Feld',
-		type: 'number',
-		base: input.base ?? 0,
+		type,
+		base: type === 'number' ? (input.base ?? 0) : 0,
+		...(type === 'dice' ? { diceBase: input.diceBase?.trim() || '1d6' } : {}),
+		...(type === 'list' ? { listBase: input.listBase ?? [] } : {}),
 		group: input.group?.trim() || GROUPS.custom,
 		order: nextOrder(c.fields)
 	};
@@ -747,4 +778,33 @@ export function applyImport(plan: ImportPlan, spellListId?: Id) {
 		title: count === 1 ? `Importiert: ${names[0]}` : `Importiert: ${count} Inhalte`,
 		changes
 	});
+}
+
+// ---------------------------------------------------------------------------
+// Assistenten (Phase 4)
+
+/** Point-Buy übernehmen: Attributswerte und auf Wunsch die Modifikator-Basiswerte. */
+export function applyAttributeScores(scores: Partial<Record<AttributeKey, number>>, mods?: Partial<Record<AttributeKey, number>>) {
+	const c = current();
+	const changes: Change[] = [];
+	for (const [k, v] of Object.entries(scores) as [AttributeKey, number][]) {
+		if (c.fields[STD.attr(k)]) changes.push({ path: ['fields', STD.attr(k), 'base'], value: v });
+	}
+	for (const [k, v] of Object.entries(mods ?? {}) as [AttributeKey, number][]) {
+		if (c.fields[STD.attrMod(k)]) changes.push({ path: ['fields', STD.attrMod(k), 'base'], value: v });
+	}
+	sheet.commit({ kind: 'assistant.pointbuy', target: c.id, title: 'Point-Buy übernommen', changes });
+}
+
+export function applyBackground(plan: BackgroundPlan, name: string) {
+	const c = current();
+	const changes: Change[] = [];
+	for (const a of plan.abilities) changes.push({ path: ['abilities', a.id], value: a });
+	for (const m of plan.modifiers) changes.push({ path: ['modifiers', m.id], value: m });
+	for (const i of plan.items) changes.push({ path: ['items', i.id], value: i });
+	for (const p of plan.proficiencyLevels) changes.push({ path: ['proficiencies', p.id, 'level'], value: p.level });
+	const gold = c.fields[STD.currency[3]];
+	if (plan.goldDelta && gold) changes.push({ path: ['fields', gold.id, 'base'], value: gold.base + plan.goldDelta });
+	if (plan.notesAppend) changes.push({ path: ['texts', plan.notesAppend.textId, 'content'], value: plan.notesAppend.content });
+	sheet.commit({ kind: 'assistant.background', target: c.id, title: `Hintergrund eingetragen: ${name || 'Hintergrund'}`, changes });
 }

@@ -14,7 +14,8 @@
 				const st = sheet.evaluation?.modifiers[m.id];
 				const target = m.targetFieldId ? (c.fields[m.targetFieldId]?.name ?? '?') : 'nicht zugeordnet';
 				let eff: string;
-				if (st?.value !== undefined) eff = formatEffect(m.op, st.value);
+				if (st?.text !== undefined) eff = m.op === 'set' ? `= ${st.text}` : st.text;
+				else if (st?.value !== undefined) eff = formatEffect(m.op, st.value);
 				else if (isPlainNumber(m.expr)) eff = formatEffect(m.op, parseFloat(m.expr.replace('−', '-')));
 				else eff = `${OP_SYMBOL[m.op]} ƒ`;
 				return { id: m.id, text: `${target} ${eff}`, error: st?.state === 'error' || st?.state === 'unassigned' };

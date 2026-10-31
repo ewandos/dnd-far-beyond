@@ -1,6 +1,8 @@
 <script lang="ts">
 	// Formel-Eingabe mit Autovervollständigung nach „@“ und Live-Vorschau des Ergebnisses.
+	import { evalDiceTerms, formatDice, parseDiceExpr, parseListText } from '$lib/engine/dice';
 	import { displayRefName, evalAst, parseExpr, toDisplayExpr, toStoredExpr } from '$lib/engine/formula';
+	import type { FieldType } from '$lib/engine/types';
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { formatNumber } from '../format';
 
@@ -13,7 +15,8 @@
 		live = false,
 		preview = true,
 		autofocus = false,
-		className = ''
+		className = '',
+		kind = 'number'
 	}: {
 		value: string;
 		onchange: (stored: string) => void;
@@ -25,6 +28,8 @@
 		preview?: boolean;
 		autofocus?: boolean;
 		className?: string;
+		/** Art des Zielfelds: bestimmt Vorschau und Autovervollständigung. */
+		kind?: FieldType;
 	} = $props();
 
 	const fields = $derived(sheet.character ? Object.values(sheet.character.fields) : []);
@@ -57,7 +62,7 @@
 	});
 
 	function updateQuery() {
-		if (!input) return;
+		if (!input || kind === 'list') return;
 		const caret = input.selectionStart ?? text.length;
 		const before = text.slice(0, caret);
 		const at = before.lastIndexOf('@');
@@ -85,17 +90,31 @@
 
 	// Vorschau ----------------------------------------------------------------
 	const result = $derived.by(() => {
-		const stored = toStoredExpr(text, fields);
 		if (!text.trim()) return null;
+		if (kind === 'list') {
+			const items = parseListText(text);
+			return { ok: true as const, text: `${items.length} Eintr${items.length === 1 ? 'ag' : 'äge'}: ${items.join(' · ')}` };
+		}
+		const stored = toStoredExpr(text, fields);
+		const ev = sheet.evaluation;
+		if (kind === 'dice') {
+			const d = parseDiceExpr(stored);
+			if (!d.ok) return { ok: false as const, text: d.error };
+			const r = evalDiceTerms(d.terms, (id) => {
+				const f = ev?.fields[id];
+				if (!f) return undefined;
+				return f.kind === 'dice' ? { kind: 'dice', value: f.dice ?? { dice: {}, flat: 0 } } : { kind: 'number', value: f.value };
+			});
+			return r.ok ? { ok: true as const, text: '= ' + formatDice(r.value) } : { ok: false as const, text: r.error };
+		}
 		const p = parseExpr(stored);
 		if (!p.ok) return { ok: false as const, text: p.error };
-		const ev = sheet.evaluation;
 		const r = evalAst(p.ast, (id) => ev?.fields[id]?.value);
 		return r.ok ? { ok: true as const, text: '= ' + formatNumber(r.value) } : { ok: false as const, text: r.error };
 	});
 
 	function commit() {
-		const stored = toStoredExpr(text, fields);
+		const stored = kind === 'list' ? text : toStoredExpr(text, fields);
 		if (stored !== value) onchange(stored);
 	}
 </script>
@@ -120,7 +139,7 @@
 		}}
 		oninput={() => {
 			updateQuery();
-			if (live) onchange(toStoredExpr(text, fields));
+			if (live) onchange(kind === 'list' ? text : toStoredExpr(text, fields));
 		}}
 		onclick={updateQuery}
 		onkeydown={(e) => {

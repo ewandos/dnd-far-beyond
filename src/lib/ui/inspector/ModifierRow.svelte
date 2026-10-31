@@ -26,11 +26,14 @@
 	const target = $derived(m?.targetFieldId ? c.fields[m.targetFieldId] : undefined);
 	const effect = $derived.by(() => {
 		if (!m) return '';
+		const t = step?.text ?? status?.text;
+		if (t !== undefined) return m.op === 'set' ? `= ${t}` : t;
 		const v = step?.value ?? status?.value;
 		if (v !== undefined) return formatEffect(m.op, v);
 		return plain ? `${OP_SYMBOL[m.op]} ${display.trim()}` : OP_SYMBOL[m.op];
 	});
 	const refs = $derived(step?.refs ?? []);
+	const targetKind = $derived(target?.type ?? 'number');
 	const sourceName = $derived(
 		m?.source.kind === 'item' ? c.items[m.source.id]?.name : m?.source.kind === 'ability' ? c.abilities[m.source.id]?.name : undefined
 	);
@@ -68,10 +71,10 @@
 						{/if}
 					{/if}
 				</div>
-				{#if !plain || (step?.factor !== undefined && step.factor !== 1)}
+				{#if (!plain || (step?.factor !== undefined && step.factor !== 1)) && targetKind !== 'list'}
 					<div class="formula">
 						<code>{display}</code>
-						{#if step}
+						{#if step && step.text === undefined}
 							<span class="muted">= {formatNumber(step.rawValue)}{#if step.factor !== undefined && step.factor !== 1}&nbsp;× {formatNumber(step.factor)}{step.factor === 0.5 ? ' (abgerundet)' : ''}{/if}</span>
 						{/if}
 						{#if refs.length}
@@ -88,7 +91,9 @@
 					</div>
 				{/if}
 				{#if step && context === 'field' && !step.overridden}
-					<div class="running muted num">{formatNumber(step.before)} → {formatNumber(step.after)}</div>
+					<div class="running muted num">
+						{step.beforeText !== undefined ? `${step.beforeText} → ${step.afterText}` : `${formatNumber(step.before)} → ${formatNumber(step.after)}`}
+					</div>
 				{/if}
 				{#if modState !== 'applied' && status?.reason}
 					<div class="reason">

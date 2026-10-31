@@ -3,7 +3,7 @@
 Digitaler D&D-5e-Charakterbogen für eine Spielgruppe – **digitales Papier mit Transparenz**:
 keine Regel-Engine, aber jeder Zahlenwert ist inspizierbar („Warum habe ich RK 17?“ → ein Tipp).
 
-Umgesetzt sind **Phase 1 (MVP)**, **Phase 2 (freies Layout und Spieltisch)** und **Phase 3 (Austausch)** aus dem Design Document.
+Umgesetzt sind alle vier Phasen aus dem Design Document: **MVP**, **freies Layout und Spieltisch**, **Austausch** sowie **Komfort und Erweiterungen**.
 
 ## Starten
 
@@ -33,10 +33,12 @@ genügt `npm run build` (bei Unterpfad `BASE_PATH` setzen).
 src/lib/engine/    Reines TypeScript, keine UI-Abhängigkeit
   types.ts         Datenmodell (Character, Field, Modifier, Item, …)
   formula.ts       Tokenizer + Pratt-Parser, @-Referenzen, Anzeige ↔ Speicherform
+  dice.ts          Würfelausdrücke (Summen aus Würfeln und Formeln) und Listen
   evaluate.ts      evaluate(character, previous?) – Reihenfolge, Konflikte, Zyklen,
                    inkrementelle Neuberechnung nur abhängiger Felder
 src/lib/model/     Standardcharakter (feste IDs std.*), Startlayout, Raster-Logik,
-                   Historie/Patches, Import/Migration, Austauschformat, 5eTools-Konverter
+                   Historie/Patches, Import/Migration, Austauschformat, 5eTools-Konverter,
+                   Point-Buy, Hintergrund-Assistent
 src/lib/store/     Svelte-5-Zustand (Runes), Aktionen mit Historie, IndexedDB (Dexie), Dateien
 src/lib/ui/        Komponenten, Layout-Raster und Bausteine, Inspektionspanel,
                    Drag & Drop (Pointer Events)
@@ -83,6 +85,19 @@ src/service-worker.ts  Offline-first-Cache aller App-Dateien
   `entries` werden zu Markdown (Absätze, benannte Abschnitte, Listen, Tabellen, Kästen),
   Inline-Tags wie `{@damage 1d8}` oder `{@spell fireball}` zu lesbarem Text. Mechanische Angaben
   werden bewusst nicht zu Modifikatoren.
+- **Feldtypen** (Phase 4): Neben **Zahl** gibt es **Würfelausdruck** (Basis z. B. `1d8`,
+  Modifikatoren wie `@STR-Mod` oder `1W6` werden zu „1d8 + 1d6 + 3“ zusammengefasst, Würfel
+  gleicher Größe addiert) und **Liste** (z. B. Sprachen; Addieren hängt Einträge ohne Dubletten
+  an, Setzen ersetzt). Bei beiden gibt es nur Setzen und Addieren. Würfelfelder dürfen in
+  Würfelausdrücken anderer Felder vorkommen, in Zahlenformeln nicht. Gewürfelt wird nie.
+- **Point-Buy-Rechner** (Verwaltung → Assistenten): Standardkosten, Budget frei wählbar, Bonus-
+  Spalte, auf Wunsch werden die Attributsmodifikatoren gleich mit eingetragen. Überschreitungen
+  sind nur ein Hinweis.
+- **Hintergrund-Assistent**: Name, Fertigkeiten (werden „geübt“, Expertise bleibt erhalten),
+  Werkzeuge, Sprachen, optionale Attributserhöhungen (+2/+1 oder +1/+1/+1) als Modifikatoren
+  einer Fähigkeit „Hintergrund“ – also inspizierbar und abschaltbar –, Merkmal oder
+  Herkunftstalent, Ausrüstung (eine Zeile pro Gegenstand, „5x Kerze“), Gold und Geschichte.
+  Alles in einem Schritt, ein Rückgängig nimmt alles zurück.
 
 - **Wert antippen** → Inspektionspanel: Endwert, Basiswert (editierbar), alle Modifikatoren in
   Auswertungsreihenfolge mit Quelle, Formel, aufklappbaren Referenzketten, inaktive
@@ -113,6 +128,8 @@ Layout (Phase 2): ein Raster aus 12 Spalten mit 40 px Zeilenhöhe für Laptop un
 1024 px Breite skaliert die ganze Seite proportional. Charaktere aus Phase 1 (Schema 1) erhalten
 beim Laden das neue Startlayout und die Zauberlisten „Vorbereitet“ und „Bekannt“.
 
-## Noch nicht umgesetzt (Phase 4)
+## Später (aus dem Design Document, bewusst nicht umgesetzt)
 
-Point-Buy- und Hintergrund-Assistent, weitere Feldtypen (Würfelausdruck, Liste).
+Live-Referenzen in Textblöcken, Handy-Ansicht, Layout-Vorlagen teilen, Bibliothek pro Gerät,
+Erkennen und Aktualisieren bereits importierter Items, 5eTools-Import für Völker, Klassen und
+Hintergründe.

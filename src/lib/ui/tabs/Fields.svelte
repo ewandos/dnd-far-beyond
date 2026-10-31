@@ -14,12 +14,14 @@
 		deleteModifier,
 		renameCounter,
 		setFieldBase,
+		setFieldDiceBase,
 		updateField,
 		updateModifier
 	} from '$lib/store/actions';
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { ui } from '$lib/store/ui.svelte';
 	import { toDisplayExpr } from '$lib/engine/formula';
+	import type { FieldType } from '$lib/engine/types';
 	import { groupedFields, groupNames } from '../fields';
 	import { OP_SYMBOL } from '../format';
 	import CounterBoxes from '../components/CounterBoxes.svelte';
@@ -38,6 +40,8 @@
 	let newName = $state('');
 	let newGroup = $state<string>(GROUPS.custom);
 	let newBase = $state(0);
+	let newType = $state<FieldType>('number');
+	let newDice = $state('1d6');
 	let filter = $state('');
 	let counterName = $state('');
 	let listName = $state('');
@@ -51,7 +55,7 @@
 
 	function create() {
 		if (!newName.trim()) return;
-		const id = addField({ name: newName, group: newGroup, base: newBase });
+		const id = addField({ name: newName, group: newGroup, base: newBase, type: newType, diceBase: newDice });
 		newName = '';
 		newBase = 0;
 		ui.toast('Feld angelegt', { label: 'Öffnen', run: () => ui.open({ kind: 'field', id }) });
@@ -75,6 +79,15 @@
 		<button type="button" class="btn" onclick={() => (ui.dialog = 'export')}><Icon name="download" size={18} /> Exportieren</button>
 	</section>
 
+	<section class="card pad exchange">
+		<div>
+			<h2 class="section-title">Assistenten</h2>
+			<p class="muted small">Hilfen beim Erstellen – sie tragen nur ein, was du auswählst, und lassen sich rückgängig machen.</p>
+		</div>
+		<button type="button" class="btn" onclick={() => (ui.dialog = 'pointbuy')}>Point-Buy</button>
+		<button type="button" class="btn" onclick={() => (ui.dialog = 'background')}>Hintergrund</button>
+	</section>
+
 	<section class="card pad">
 		<h2 class="section-title">Eigenes Feld anlegen</h2>
 		<form
@@ -89,7 +102,16 @@
 			<datalist id="group-names">
 				{#each allGroups as g (g)}<option value={g}></option>{/each}
 			</datalist>
-			<NumberInput value={newBase} onchange={(v) => (newBase = v)} label="Basiswert" />
+			<select class="select type" bind:value={newType} aria-label="Feldtyp">
+				<option value="number">Zahl</option>
+				<option value="dice">Würfelausdruck</option>
+				<option value="list">Liste</option>
+			</select>
+			{#if newType === 'number'}
+				<NumberInput value={newBase} onchange={(v) => (newBase = v)} label="Basiswert" />
+			{:else if newType === 'dice'}
+				<input class="input dice" aria-label="Würfel-Basiswert" bind:value={newDice} placeholder="1d6" />
+			{/if}
 			<button type="submit" class="btn primary" disabled={!newName.trim()}><Icon name="plus" size={18} /> Anlegen</button>
 		</form>
 		<p class="muted small">
@@ -135,7 +157,11 @@
 									<input class="input inline" list="group-names" value={f.group ?? ''} aria-label="Gruppe von {f.name}" onchange={(e) => updateField(f.id, 'group', (e.currentTarget as HTMLInputElement).value || undefined)} />
 								</td>
 								<td class="r">
-									{#if f.computed}<span class="muted small">gezählt</span>{:else}<NumberInput value={f.base} onchange={(v) => setFieldBase(f.id, v)} label="Basiswert {f.name}" width="72px" className="inline" />{/if}
+									{#if f.type === 'dice'}
+										<input class="input inline dice" value={f.diceBase ?? ''} aria-label="Basiswert {f.name}" onchange={(e) => setFieldDiceBase(f.id, (e.currentTarget as HTMLInputElement).value.trim())} />
+									{:else if f.type === 'list'}
+										<span class="muted small">{(f.listBase ?? []).length} Einträge</span>
+									{:else if f.computed}<span class="muted small">gezählt</span>{:else}<NumberInput value={f.base} onchange={(v) => setFieldBase(f.id, v)} label="Basiswert {f.name}" width="72px" className="inline" />{/if}
 								</td>
 								<td class="r"><FieldValue id={f.id} size="sm" /></td>
 								<td class="c">
@@ -257,6 +283,12 @@
 	}
 	.create .group {
 		flex: 1;
+	}
+	.create .type {
+		width: 170px;
+	}
+	.dice {
+		width: 110px;
 	}
 	.small {
 		font-size: 13px;

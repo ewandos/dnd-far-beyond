@@ -30,11 +30,18 @@ export interface CharacterMeta {
 	lastExportedAt?: string;
 }
 
+export type FieldType = 'number' | 'dice' | 'list';
+
 export interface Field {
 	id: Id; // Standardfelder: feste IDs wie 'std.ac'
 	name: string;
-	type: 'number'; // später: 'dice' | 'list'
+	type: FieldType;
+	/** Basiswert bei Zahlenfeldern. */
 	base: number;
+	/** Basiswert bei Würfelfeldern, z. B. „1d8“ (ohne Referenzen). */
+	diceBase?: string;
+	/** Basiswert bei Listenfeldern, z. B. Sprachen. */
+	listBase?: string[];
 	notes?: string;
 	group?: string;
 	order: number;

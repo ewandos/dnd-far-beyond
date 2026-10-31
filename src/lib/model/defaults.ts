@@ -245,6 +245,7 @@ export function defaultLayout(c: Pick<Character, 'texts' | 'spellLists'>): Layou
 			tab('std.tab.overview', 'Übersicht', 0, [
 				block('fieldGroup', 0, 0, 3, 8, { group: GROUPS.attributes, display: 'tiles' }),
 				block('fieldGroup', 0, 8, 3, 7, { group: GROUPS.saves, display: 'list' }),
+				block('fieldGroup', 0, 15, 3, 5, { group: GROUPS.custom, display: 'list' }),
 				block('fieldGroup', 3, 0, 3, 17, { group: GROUPS.skills, display: 'list' }),
 				block('field', 6, 0, 2, 2, { fieldId: STD.ac }),
 				block('field', 8, 0, 2, 2, { fieldId: STD.initiative }),

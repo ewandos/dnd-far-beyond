@@ -2,7 +2,7 @@
 	// Antippbarer Zahlenwert mit dezenten Hinweis-Symbolen (Konflikt, Fehler, Zyklus).
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { ui } from '$lib/store/ui.svelte';
-	import { formatValue } from '../format';
+	import { formatResult, formatValue } from '../format';
 	import Icon from './Icon.svelte';
 
 	let {
@@ -26,14 +26,15 @@
 		class="value {size}"
 		class:active
 		class:modified
+		class:textual={result.kind !== 'number'}
 		data-field={id}
-		aria-label="{label ?? field.name}: {formatValue(result.value, field)} – Herkunft anzeigen"
+		aria-label="{label ?? field.name}: {formatResult(result, field)} – Herkunft anzeigen"
 		onclick={(e) => {
 			e.stopPropagation();
 			ui.open({ kind: 'field', id });
 		}}
 	>
-		<span class="num">{formatValue(result.value, field)}</span>
+		<span class="num">{formatResult(result, field)}</span>
 		{#if hasConflict || hasError || hasCycle}
 			<span class="flags">
 				{#if hasConflict}<span class="flag warn" title="Konflikt: mehrere Setzen-Modifikatoren"><Icon name="conflict" size={12} stroke={2.2} /></span>{/if}
@@ -75,6 +76,15 @@
 		text-decoration: underline dotted var(--faint);
 		text-underline-offset: 4px;
 		text-decoration-thickness: 1px;
+	}
+	.value.textual {
+		font-size: 0.72em;
+		font-weight: 600;
+		white-space: normal;
+		text-align: left;
+		line-height: 1.25;
+		padding-top: 4px;
+		padding-bottom: 4px;
 	}
 	.xl {
 		font-size: 34px;

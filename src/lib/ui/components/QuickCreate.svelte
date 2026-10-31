@@ -27,6 +27,12 @@
 		Object.values(sheet.character?.containers ?? {}).sort((a, b) => Number(b.equipped) - Number(a.equipped) || a.order - b.order)
 	);
 	const noun = $derived(kind === 'item' ? 'Item' : KIND_LABEL[kind]);
+	const targetKind = $derived((fieldId && sheet.character?.fields[fieldId]?.type) || 'number');
+	const ALL_OPS: Operation[] = ['add', 'set', 'multiply', 'divide'];
+	const ops = $derived(targetKind === 'number' ? ALL_OPS : ALL_OPS.slice(0, 2));
+	$effect.pre(() => {
+		if (targetKind !== 'number' && (op === 'multiply' || op === 'divide')) op = 'add';
+	});
 
 	function submit() {
 		if (!name.trim()) {
@@ -74,12 +80,12 @@
 	<FieldSelect value={fieldId} onchange={(v) => (fieldId = v)} allowNone noneLabel="ohne Modifikator" label="Zielfeld" className="field" />
 	{#if fieldId}
 		<select class="select op" aria-label="Operation" bind:value={op}>
-			{#each ['add', 'set', 'multiply', 'divide'] as const as o (o)}
+			{#each ops as o (o)}
 				<option value={o}>{OP_SYMBOL[o]}</option>
 			{/each}
 		</select>
 		{#key formKey}
-			<FormulaInput value={expr} onchange={(v) => (expr = v)} onenter={submit} live preview={false} placeholder="Wert" className="expr" />
+			<FormulaInput value={expr} onchange={(v) => (expr = v)} onenter={submit} live preview={false} placeholder={targetKind === 'list' ? 'Einträge' : 'Wert'} className="expr" kind={targetKind} />
 		{/key}
 	{/if}
 	{#if kind === 'item'}

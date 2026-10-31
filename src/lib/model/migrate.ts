@@ -85,7 +85,8 @@ export function migrateCharacter(input: unknown): Character {
 	for (const f of Object.values(c.fields)) {
 		if (typeof f.base !== 'number' || !Number.isFinite(f.base)) f.base = Number(f.base) || 0;
 		if (typeof f.order !== 'number') f.order = 0;
-		f.type = 'number';
+		if (f.type !== 'dice' && f.type !== 'list') f.type = 'number';
+		if (f.type === 'list' && !Array.isArray(f.listBase)) f.listBase = [];
 	}
 	for (const m of Object.values(c.modifiers)) {
 		if (typeof m.expr !== 'string') m.expr = String(m.expr ?? '');
