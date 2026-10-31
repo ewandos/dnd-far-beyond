@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" id="viewport" />
+		<script>
+			// Das Layout ist für Querformat ab 1024 px ausgelegt. Schmalere Geräte (iPad hochkant)
+			// skalieren proportional, statt umzubrechen.
+			(function () {
+				var MIN = 1024;
+				var meta = document.getElementById('viewport');
+				function deviceWidth() {
+					var s = window.screen;
+					var landscape = window.matchMedia && window.matchMedia('(orientation: landscape)').matches;
+					return landscape ? Math.max(s.width, s.height) : Math.min(s.width, s.height);
+				}
+				function update() {
+					var w = deviceWidth();
+					meta.setAttribute(
+						'content',
+						w >= MIN
+							? 'width=device-width, initial-scale=1, viewport-fit=cover'
+							: 'width=' + MIN + ', viewport-fit=cover'
+					);
+				}
+				update();
+				window.addEventListener('orientationchange', function () { setTimeout(update, 50); });
+				window.addEventListener('resize', update);
+				// Theme vor dem ersten Rendern setzen, damit nichts aufblitzt.
+				try {
+					var t = localStorage.getItem('theme');
+					if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+				} catch (e) {}
+			})();
+		</script>
+		<meta name="theme-color" content="#f3ecdf" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#1c1916" media="(prefers-color-scheme: dark)" />
+		<meta name="description" content="Digitaler D&D-5e-Charakterbogen – wie Papier, aber jeder Wert ist nachvollziehbar." />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+		<meta name="apple-mobile-web-app-title" content="Charakterbogen" />
+		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+		<title>Charakterbogen</title>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>
