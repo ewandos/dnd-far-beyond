@@ -2,10 +2,12 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
 	testDir: 'e2e',
+	// In CI zusätzlich ein HTML-Bericht, der bei Fehlschlägen als Artefakt hochgeladen wird.
+	reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
 	webServer: {
 		command: 'npm run build && npx vite preview --port 4173 --strictPort',
 		port: 4173,
-		reuseExistingServer: true,
+		reuseExistingServer: !process.env.CI,
 		timeout: 120_000
 	},
 	use: { baseURL: 'http://localhost:4173/' },

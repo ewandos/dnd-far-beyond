@@ -8,7 +8,9 @@ import {
 	type Container,
 	type Counter,
 	type Field,
+	type Layout,
 	type Modifier,
+	type SpellList,
 	type Proficiency,
 	type Tab,
 	type TextNote
@@ -199,6 +201,8 @@ export function createDefaultCharacter(name = 'Neuer Charakter'): Character {
 		texts[id] = { id, title, content: '', order: i };
 	});
 
+	const spellLists = defaultSpellLists();
+
 	return {
 		schemaVersion: SCHEMA_VERSION,
 		id: newId(),
@@ -212,55 +216,77 @@ export function createDefaultCharacter(name = 'Neuer Charakter'): Character {
 		proficiencies,
 		counters,
 		spells: {},
-		spellLists: {},
+		spellLists,
 		texts,
-		layout: defaultLayout(texts),
+		layout: defaultLayout({ texts, spellLists }),
 		history: []
 	};
 }
 
-/** Startlayout als Daten. Phase 1 zeigt eine feste Standardansicht, das Layout reist aber schon mit. */
-function defaultLayout(texts: Record<string, TextNote>): Character['layout'] {
+/** Startlayout: frei veränderbar, gehört zum Charakter und reist mit dem Export. */
+export function defaultLayout(c: Pick<Character, 'texts' | 'spellLists'>): Layout {
 	let blockN = 0;
-	const block = (type: Block['type'], x: number, y: number, w: number, h: number, config: Record<string, unknown>): Block => ({
-		id: `std.block.${blockN++}`,
-		type,
-		x,
-		y,
-		w,
-		h,
-		config
-	});
+	const block = (
+		type: Block['type'],
+		x: number,
+		y: number,
+		w: number,
+		h: number,
+		config: Record<string, unknown>,
+		title?: string
+	): Block => ({ id: `std.block.${blockN++}`, type, x, y, w, h, config, ...(title ? { title } : {}) });
 	const tab = (id: string, name: string, order: number, blocks: Block[]): Tab => ({ id, name, hidden: false, order, blocks });
+	const C = STD.counter;
+	const lists = Object.values(c.spellLists).sort((a, b) => a.order - b.order);
+	const texts = Object.values(c.texts).sort((a, b) => a.order - b.order);
+
 	return {
 		tabs: [
 			tab('std.tab.overview', 'Übersicht', 0, [
-				block('fieldGroup', 0, 0, 3, 6, { group: GROUPS.attributes }),
-				block('fieldGroup', 3, 0, 3, 6, { group: GROUPS.saves }),
-				block('fieldGroup', 3, 6, 3, 10, { group: GROUPS.skills }),
+				block('fieldGroup', 0, 0, 3, 8, { group: GROUPS.attributes, display: 'tiles' }),
+				block('fieldGroup', 0, 8, 3, 7, { group: GROUPS.saves, display: 'list' }),
+				block('fieldGroup', 0, 15, 3, 5, { group: GROUPS.custom, display: 'list' }),
+				block('fieldGroup', 3, 0, 3, 17, { group: GROUPS.skills, display: 'list' }),
 				block('field', 6, 0, 2, 2, { fieldId: STD.ac }),
 				block('field', 8, 0, 2, 2, { fieldId: STD.initiative }),
 				block('field', 10, 0, 2, 2, { fieldId: STD.speed }),
-				block('fieldGroup', 6, 2, 6, 2, { group: GROUPS.hp }),
-				block('counter', 6, 4, 3, 2, { counterId: STD.counter.hitDice }),
-				block('cardList', 6, 6, 6, 6, { kind: 'condition' })
+				block('field', 6, 2, 3, 4, { fieldId: STD.hpCurrent, stepper: true }),
+				block('fieldGroup', 9, 2, 3, 4, { fieldIds: [STD.hpMax, STD.hpTemp], display: 'tiles' }, 'Trefferpunkte'),
+				block('counter', 6, 6, 4, 5, { counterIds: [C.hitDice, C.deathSuccess, C.deathFailure, C.inspiration] }, 'Zähler'),
+				block('field', 10, 6, 2, 2, { fieldId: STD.prof }),
+				block('field', 10, 8, 2, 3, { fieldId: STD.passivePerception }),
+				block('cardList', 6, 11, 6, 4, { kind: 'condition' }),
+				block('cardList', 6, 15, 6, 5, { kind: 'equipped' })
 			]),
 			tab('std.tab.inventory', 'Inventar', 1, [
-				block('container', 0, 0, 6, 8, { containerId: STD.equipped }),
-				block('container', 6, 0, 6, 8, { containerId: STD.backpack }),
-				block('fieldGroup', 0, 8, 12, 2, { group: GROUPS.currency })
+				block('fieldGroup', 0, 0, 8, 3, { group: GROUPS.currency, display: 'tiles' }),
+				block('field', 8, 0, 2, 3, { fieldId: STD.attuned }),
+				block('field', 10, 0, 2, 3, { fieldId: STD.attunementLimit }),
+				block('container', 0, 3, 6, 10, { containerId: STD.equipped }),
+				block('container', 6, 3, 6, 10, { containerId: STD.backpack })
 			]),
 			tab('std.tab.abilities', 'Fähigkeiten', 2, [
-				block('cardList', 0, 0, 6, 10, { kind: 'ability' }),
-				block('cardList', 6, 0, 6, 10, { kind: 'condition' })
+				block('cardList', 0, 0, 6, 16, { kind: 'ability', showDescriptions: true }),
+				block('cardList', 6, 0, 6, 16, { kind: 'condition', showDescriptions: true })
 			]),
-			tab('std.tab.spells', 'Zauber', 3, [block('fieldGroup', 0, 0, 12, 2, { group: GROUPS.magic })]),
+			tab('std.tab.spells', 'Zauber', 3, [
+				block('fieldGroup', 0, 0, 4, 3, { group: GROUPS.magic, display: 'tiles' }),
+				block('counter', 0, 3, 4, 6, { group: 'Zauberplätze' }, 'Zauberplätze'),
+				...lists.map((l, i) => block('cardList', 4, i * 8, 8, 8, { kind: 'spells', spellListId: l.id }))
+			]),
 			tab(
 				'std.tab.notes',
 				'Notizen',
 				4,
-				Object.values(texts).map((t, i) => block('text', (i % 2) * 6, Math.floor(i / 2) * 6, 6, 6, { textId: t.id }))
+				texts.map((t, i) => block('text', (i % 2) * 6, Math.floor(i / 2) * 8, 6, 8, { textId: t.id }))
 			)
 		]
+	};
+}
+
+export function defaultSpellLists(): Record<string, SpellList> {
+	return {
+		'std.spelllist.prepared': { id: 'std.spelllist.prepared', name: 'Vorbereitet', spellIds: [], order: 0 },
+		'std.spelllist.known': { id: 'std.spelllist.known', name: 'Bekannt', spellIds: [], order: 1 }
 	};
 }

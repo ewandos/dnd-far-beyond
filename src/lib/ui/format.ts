@@ -16,6 +16,14 @@ export function formatValue(v: number, field?: Pick<Field, 'format'>): string {
 	return field?.format === 'signed' ? formatSigned(v) : formatNumber(v);
 }
 
+/** Anzeige eines Feldergebnisses – Zahl, Würfelausdruck oder Liste. */
+export function formatResult(r: { kind: string; value: number; text?: string }, field?: Pick<Field, 'format'>): string {
+	if (r.kind === 'number') return formatValue(r.value, field);
+	return r.text?.trim() ? r.text : '—';
+}
+
+export const FIELD_TYPE_LABEL = { number: 'Zahl', dice: 'Würfelausdruck', list: 'Liste' } as const;
+
 export const OP_SYMBOL: Record<Operation, string> = {
 	add: '+',
 	set: '=',

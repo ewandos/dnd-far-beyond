@@ -10,7 +10,7 @@
 	import ItemRow from './ItemRow.svelte';
 	import Switch from './Switch.svelte';
 
-	let { id, depth = 0 }: { id: string; depth?: number } = $props();
+	let { id, depth = 0, bare = false }: { id: string; depth?: number; bare?: boolean } = $props();
 	const c = $derived(sheet.character!);
 	const ct = $derived(c.containers[id]);
 	const items = $derived(itemsIn(c, id));
@@ -20,7 +20,7 @@
 </script>
 
 {#if ct}
-	<div class="container" class:nested={depth > 0} class:equipped={ct.equipped} class:over={isOver} data-drop-container={id} data-container={id}>
+	<div class="container" class:bare class:nested={depth > 0} class:equipped={ct.equipped} class:over={isOver} data-drop-container={id} data-container={id}>
 		<div class="head">
 			{#if depth > 0}
 				<span class="grip" use:draggable={{ payload: { kind: 'container', id, label: ct.name }, ondrop: handleDrop }} title="Ziehen zum Verschieben" aria-hidden="true">
@@ -77,6 +77,16 @@
 	}
 	.container.equipped {
 		border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+	}
+	.container.bare {
+		border: none;
+		background: transparent;
+		padding: 0;
+		box-shadow: none;
+	}
+	.container.bare.over {
+		background: var(--accent-soft);
+		box-shadow: 0 0 0 2px var(--accent);
 	}
 	.container.nested {
 		margin: 6px 0 4px;

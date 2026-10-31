@@ -33,6 +33,7 @@
 	--radius-sm: 6px;
 	--tap: 44px;
 	--header-h: calc(60px + env(safe-area-inset-top));
+	--tabs-h: 53px;
 }
 
 @media (prefers-color-scheme: dark) {

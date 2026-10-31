@@ -14,7 +14,9 @@
 		const current = id;
 		status = 'loading';
 		ui.close();
-		ui.tab = 'overview';
+		ui.tab = '';
+		ui.editMode = false;
+		ui.dialog = null;
 		ui.historyFilter = '';
 		loadCharacter(current)
 			.then((c) => {

@@ -77,6 +77,9 @@
 	}
 
 	const curOp = $derived(modifier ? modifier.op : op);
+	const targetId = $derived(modifier ? modifier.targetFieldId : (fixedTarget ?? target));
+	const targetKind = $derived((targetId && c.fields[targetId]?.type) || 'number');
+	const ops = $derived(targetKind === 'number' ? (['add', 'set', 'multiply', 'divide'] as const) : (['add', 'set'] as const));
 </script>
 
 <div class="form" class:editing>
@@ -102,7 +105,7 @@
 				else op = v;
 			}}
 		>
-			{#each ['add', 'set', 'multiply', 'divide'] as const as o (o)}
+			{#each ops as o (o)}
 				<option value={o}>{OP_SYMBOL[o]} {OP_LABEL[o]}</option>
 			{/each}
 		</select>
@@ -114,6 +117,8 @@
 			onenter={modifier ? undefined : create}
 			live={!modifier}
 			autofocus={!modifier}
+			kind={targetKind}
+			placeholder={targetKind === 'list' ? 'Einträge, durch Komma getrennt' : targetKind === 'dice' ? 'z. B. 1d6 oder @STR-Mod' : undefined}
 		/>
 		{#if curOp === 'multiply' || curOp === 'divide'}
 			<select

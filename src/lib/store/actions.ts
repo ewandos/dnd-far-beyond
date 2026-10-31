@@ -11,10 +11,14 @@ import type {
 	Modifier,
 	Operation,
 	ProficiencyLevel,
+	Spell,
+	SpellList,
 	TextNote
 } from '$lib/engine/types';
 import { formatOp } from '$lib/ui/format';
-import { GROUPS } from '$lib/model/defaults';
+import { GROUPS, STD, type AttributeKey } from '$lib/model/defaults';
+import type { BackgroundPlan } from '$lib/model/background';
+import type { ImportPlan } from '$lib/model/content';
 import { newId } from '$lib/model/ids';
 import { current, sheet, type Change } from './sheet.svelte';
 
@@ -56,6 +60,33 @@ export function setFieldBase(id: Id, value: number) {
 	});
 }
 
+export function setFieldDiceBase(id: Id, value: string) {
+	const f = current().fields[id];
+	if (!f) return;
+	sheet.commit({
+		kind: 'field.diceBase',
+		target: id,
+		title: f.name,
+		before: f.diceBase ?? '',
+		after: value,
+		changes: [{ path: ['fields', id, 'diceBase'], value }],
+		coalesce: true
+	});
+}
+
+export function setFieldListBase(id: Id, value: string[]) {
+	const f = current().fields[id];
+	if (!f) return;
+	sheet.commit({
+		kind: 'field.listBase',
+		target: id,
+		title: f.name,
+		before: (f.listBase ?? []).join(', '),
+		after: value.join(', '),
+		changes: [{ path: ['fields', id, 'listBase'], value }]
+	});
+}
+
 const FIELD_PROP_TITLES: Partial<Record<keyof Field, string>> = {
 	name: 'Feld umbenannt',
 	notes: 'Notiz',
@@ -78,14 +109,17 @@ export function updateField<K extends 'name' | 'notes' | 'group' | 'hidden' | 'f
 	});
 }
 
-export function addField(input: { name: string; group?: string; base?: number }): Id {
+export function addField(input: { name: string; group?: string; base?: number; type?: Field['type']; diceBase?: string; listBase?: string[] }): Id {
 	const c = current();
 	const id = newId();
+	const type = input.type ?? 'number';
 	const field: Field = {
 		id,
 		name: input.name.trim() || 'Neues Feld',
-		type: 'number',
-		base: input.base ?? 0,
+		type,
+		base: type === 'number' ? (input.base ?? 0) : 0,
+		...(type === 'dice' ? { diceBase: input.diceBase?.trim() || '1d6' } : {}),
+		...(type === 'list' ? { listBase: input.listBase ?? [] } : {}),
 		group: input.group?.trim() || GROUPS.custom,
 		order: nextOrder(c.fields)
 	};
@@ -611,4 +645,166 @@ export function deleteText(id: Id) {
 		title: `Notiz gelöscht: ${t.title}`,
 		changes: [{ path: ['texts', id], value: undefined }]
 	});
+}
+
+// ---------------------------------------------------------------------------
+// Zauber und Zauberlisten
+
+export function spellLevelLabel(level: number): string {
+	return level <= 0 ? 'Zaubertrick' : `Grad ${level}`;
+}
+
+export function addSpell(input: { name: string; level?: number }, listId?: Id): Id {
+	const c = current();
+	const id = newId();
+	const spell: Spell = {
+		id,
+		name: input.name.trim() || 'Neuer Zauber',
+		level: Math.max(0, Math.min(9, Math.round(input.level ?? 1))),
+		description: '',
+		tags: []
+	};
+	const changes: Change[] = [{ path: ['spells', id], value: spell }];
+	const list = listId ? c.spellLists[listId] : undefined;
+	if (list) changes.push({ path: ['spellLists', list.id, 'spellIds'], value: [...list.spellIds, id] });
+	sheet.commit({ kind: 'spell.add', target: id, title: `Zauber angelegt: ${spell.name}`, changes });
+	return id;
+}
+
+type SpellKey = 'name' | 'level' | 'school' | 'castingTime' | 'range' | 'components' | 'duration' | 'description' | 'tags' | 'concentration' | 'ritual' | 'notes';
+
+export function updateSpell<K extends SpellKey>(id: Id, key: K, value: Spell[K]) {
+	const s = current().spells[id];
+	if (!s) return;
+	const empty = value === '' || value === false;
+	sheet.commit({
+		kind: `spell.${key}`,
+		target: id,
+		title: `${s.name}: ${SPELL_PROP_LABEL[key]}`,
+		changes: [{ path: ['spells', id, key], value: empty && key !== 'name' && key !== 'description' ? undefined : value }],
+		coalesce: key !== 'concentration' && key !== 'ritual'
+	});
+}
+
+export const SPELL_PROP_LABEL: Record<SpellKey, string> = {
+	name: 'Name',
+	level: 'Grad',
+	school: 'Schule',
+	castingTime: 'Zeitaufwand',
+	range: 'Reichweite',
+	components: 'Komponenten',
+	duration: 'Wirkungsdauer',
+	description: 'Beschreibung',
+	tags: 'Tags',
+	concentration: 'Konzentration',
+	ritual: 'Ritual',
+	notes: 'Notizen'
+};
+
+export function deleteSpell(id: Id) {
+	const c = current();
+	const s = c.spells[id];
+	if (!s) return;
+	const changes: Change[] = [{ path: ['spells', id], value: undefined }];
+	for (const l of Object.values(c.spellLists)) {
+		if (l.spellIds.includes(id)) changes.push({ path: ['spellLists', l.id, 'spellIds'], value: l.spellIds.filter((x) => x !== id) });
+	}
+	sheet.commit({ kind: 'spell.delete', target: id, title: `Zauber gelöscht: ${s.name}`, changes });
+}
+
+export function setSpellInList(spellId: Id, listId: Id, inList: boolean) {
+	const c = current();
+	const l = c.spellLists[listId];
+	const s = c.spells[spellId];
+	if (!l || !s || l.spellIds.includes(spellId) === inList) return;
+	sheet.commit({
+		kind: 'spelllist.member',
+		target: listId,
+		title: `${s.name} ${inList ? '→' : '←'} ${l.name}`,
+		changes: [{ path: ['spellLists', listId, 'spellIds'], value: inList ? [...l.spellIds, spellId] : l.spellIds.filter((x) => x !== spellId) }]
+	});
+}
+
+export function addSpellList(name: string): Id {
+	const c = current();
+	const id = newId();
+	const list: SpellList = { id, name: name.trim() || 'Neue Liste', spellIds: [], order: nextOrder(c.spellLists) };
+	sheet.commit({ kind: 'spelllist.add', target: id, title: `Zauberliste angelegt: ${list.name}`, changes: [{ path: ['spellLists', id], value: list }] });
+	return id;
+}
+
+export function renameSpellList(id: Id, name: string) {
+	const l = current().spellLists[id];
+	if (!l) return;
+	sheet.commit({
+		kind: 'spelllist.name',
+		target: id,
+		title: 'Zauberliste umbenannt',
+		before: l.name,
+		after: name,
+		changes: [{ path: ['spellLists', id, 'name'], value: name }],
+		coalesce: true
+	});
+}
+
+/** Löscht nur die Liste – die Zauber selbst bleiben erhalten. */
+export function deleteSpellList(id: Id) {
+	const l = current().spellLists[id];
+	if (!l) return;
+	sheet.commit({ kind: 'spelllist.delete', target: id, title: `Zauberliste gelöscht: ${l.name}`, changes: [{ path: ['spellLists', id], value: undefined }] });
+}
+
+// ---------------------------------------------------------------------------
+// Austausch einzelner Inhalte
+
+/** Spielt einen Import-Plan als ein einziges Ereignis ein (ein Rückgängig macht alles rückgängig). */
+export function applyImport(plan: ImportPlan, spellListId?: Id) {
+	const c = current();
+	const changes: Change[] = [];
+	for (const x of plan.counters) changes.push({ path: ['counters', x.id], value: x });
+	for (const x of plan.items) changes.push({ path: ['items', x.id], value: x });
+	for (const x of plan.abilities) changes.push({ path: ['abilities', x.id], value: x });
+	for (const x of plan.spells) changes.push({ path: ['spells', x.id], value: x });
+	for (const x of plan.modifiers) changes.push({ path: ['modifiers', x.id], value: x });
+	const list = spellListId ? c.spellLists[spellListId] : undefined;
+	if (list && plan.spells.length) {
+		changes.push({ path: ['spellLists', list.id, 'spellIds'], value: [...list.spellIds, ...plan.spells.map((s) => s.id)] });
+	}
+	const count = plan.items.length + plan.abilities.length + plan.spells.length;
+	const names = [...plan.items, ...plan.abilities, ...plan.spells].map((x) => x.name);
+	sheet.commit({
+		kind: 'content.import',
+		target: c.id,
+		title: count === 1 ? `Importiert: ${names[0]}` : `Importiert: ${count} Inhalte`,
+		changes
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Assistenten (Phase 4)
+
+/** Point-Buy übernehmen: Attributswerte und auf Wunsch die Modifikator-Basiswerte. */
+export function applyAttributeScores(scores: Partial<Record<AttributeKey, number>>, mods?: Partial<Record<AttributeKey, number>>) {
+	const c = current();
+	const changes: Change[] = [];
+	for (const [k, v] of Object.entries(scores) as [AttributeKey, number][]) {
+		if (c.fields[STD.attr(k)]) changes.push({ path: ['fields', STD.attr(k), 'base'], value: v });
+	}
+	for (const [k, v] of Object.entries(mods ?? {}) as [AttributeKey, number][]) {
+		if (c.fields[STD.attrMod(k)]) changes.push({ path: ['fields', STD.attrMod(k), 'base'], value: v });
+	}
+	sheet.commit({ kind: 'assistant.pointbuy', target: c.id, title: 'Point-Buy übernommen', changes });
+}
+
+export function applyBackground(plan: BackgroundPlan, name: string) {
+	const c = current();
+	const changes: Change[] = [];
+	for (const a of plan.abilities) changes.push({ path: ['abilities', a.id], value: a });
+	for (const m of plan.modifiers) changes.push({ path: ['modifiers', m.id], value: m });
+	for (const i of plan.items) changes.push({ path: ['items', i.id], value: i });
+	for (const p of plan.proficiencyLevels) changes.push({ path: ['proficiencies', p.id, 'level'], value: p.level });
+	const gold = c.fields[STD.currency[3]];
+	if (plan.goldDelta && gold) changes.push({ path: ['fields', gold.id, 'base'], value: gold.base + plan.goldDelta });
+	if (plan.notesAppend) changes.push({ path: ['texts', plan.notesAppend.textId, 'content'], value: plan.notesAppend.content });
+	sheet.commit({ kind: 'assistant.background', target: c.id, title: `Hintergrund eingetragen: ${name || 'Hintergrund'}`, changes });
 }

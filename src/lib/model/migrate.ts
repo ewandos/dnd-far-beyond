@@ -1,6 +1,7 @@
 // Einlesen und Migrieren von Charakter-Dateien.
 
 import { SCHEMA_VERSION, type Character } from '../engine/types';
+import { defaultLayout, defaultSpellLists } from './defaults';
 
 export class ImportError extends Error {}
 
@@ -8,7 +9,16 @@ type Raw = Record<string, unknown>;
 
 /** Migrationen von Version n auf n + 1. Index = Ausgangsversion. */
 const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
-	// 1: (raw) => ({ ...raw, schemaVersion: 2, ... })
+	// Phase 2: Zauberlisten und freies Layout. In Version 1 war das Layout nicht editierbar,
+	// daher wird es durch das neue Startlayout ersetzt.
+	1: (raw) => {
+		const spellLists =
+			raw.spellLists && typeof raw.spellLists === 'object' && Object.keys(raw.spellLists).length
+				? (raw.spellLists as Character['spellLists'])
+				: defaultSpellLists();
+		const texts = (raw.texts && typeof raw.texts === 'object' ? raw.texts : {}) as Character['texts'];
+		return { ...raw, schemaVersion: 2, spellLists, layout: defaultLayout({ texts, spellLists }) };
+	}
 };
 
 const RECORDS = [
@@ -65,10 +75,18 @@ export function migrateCharacter(input: unknown): Character {
 	out.schemaVersion = SCHEMA_VERSION;
 
 	const c = out as unknown as Character;
+	// Items ohne existierenden Container landen im ersten Container, damit nichts unsichtbar wird.
+	const firstContainer = Object.values(c.containers).sort((a, b) => a.order - b.order)[0];
+	for (const item of Object.values(c.items)) {
+		if (!c.containers[item.containerId] && firstContainer) item.containerId = firstContainer.id;
+	}
+	for (const s of Object.values(c.spells)) if (!Array.isArray(s.tags)) s.tags = [];
+	for (const l of Object.values(c.spellLists)) if (!Array.isArray(l.spellIds)) l.spellIds = [];
 	for (const f of Object.values(c.fields)) {
 		if (typeof f.base !== 'number' || !Number.isFinite(f.base)) f.base = Number(f.base) || 0;
 		if (typeof f.order !== 'number') f.order = 0;
-		f.type = 'number';
+		if (f.type !== 'dice' && f.type !== 'list') f.type = 'number';
+		if (f.type === 'list' && !Array.isArray(f.listBase)) f.listBase = [];
 	}
 	for (const m of Object.values(c.modifiers)) {
 		if (typeof m.expr !== 'string') m.expr = String(m.expr ?? '');

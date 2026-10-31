@@ -4,16 +4,24 @@
 	import {
 		addCounter,
 		addField,
+		addSpellList,
+		addText,
+		deleteSpellList,
+		deleteText,
+		renameSpellList,
+		updateText,
 		deleteCounter,
 		deleteModifier,
 		renameCounter,
 		setFieldBase,
+		setFieldDiceBase,
 		updateField,
 		updateModifier
 	} from '$lib/store/actions';
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { ui } from '$lib/store/ui.svelte';
 	import { toDisplayExpr } from '$lib/engine/formula';
+	import type { FieldType } from '$lib/engine/types';
 	import { groupedFields, groupNames } from '../fields';
 	import { OP_SYMBOL } from '../format';
 	import CounterBoxes from '../components/CounterBoxes.svelte';
@@ -32,12 +40,22 @@
 	let newName = $state('');
 	let newGroup = $state<string>(GROUPS.custom);
 	let newBase = $state(0);
+	let newType = $state<FieldType>('number');
+	let newDice = $state('1d6');
 	let filter = $state('');
 	let counterName = $state('');
+	let listName = $state('');
+	let textName = $state('');
+	let confirmDelete = $state<string | null>(null);
+	const spellLists = $derived(Object.values(c.spellLists).sort((a, b) => a.order - b.order));
+	const texts = $derived(Object.values(c.texts).sort((a, b) => a.order - b.order));
+	/** Wird die Liste bzw. Notiz in einem Baustein verwendet? */
+	const usedIn = (key: 'spellListId' | 'textId', id: string) =>
+		c.layout.tabs.filter((t) => t.blocks.some((b) => b.config[key] === id)).map((t) => t.name);
 
 	function create() {
 		if (!newName.trim()) return;
-		const id = addField({ name: newName, group: newGroup, base: newBase });
+		const id = addField({ name: newName, group: newGroup, base: newBase, type: newType, diceBase: newDice });
 		newName = '';
 		newBase = 0;
 		ui.toast('Feld angelegt', { label: 'Öffnen', run: () => ui.open({ kind: 'field', id }) });
@@ -52,6 +70,24 @@
 </script>
 
 <div class="fields">
+	<section class="card pad exchange">
+		<div>
+			<h2 class="section-title">Austausch</h2>
+			<p class="muted small">Items, Fähigkeiten, Zustände und Zauber als Datei weitergeben oder vom SL bzw. aus 5eTools übernehmen.</p>
+		</div>
+		<button type="button" class="btn" onclick={() => (ui.dialog = 'import')}><Icon name="upload" size={18} /> Importieren</button>
+		<button type="button" class="btn" onclick={() => (ui.dialog = 'export')}><Icon name="download" size={18} /> Exportieren</button>
+	</section>
+
+	<section class="card pad exchange">
+		<div>
+			<h2 class="section-title">Assistenten</h2>
+			<p class="muted small">Hilfen beim Erstellen – sie tragen nur ein, was du auswählst, und lassen sich rückgängig machen.</p>
+		</div>
+		<button type="button" class="btn" onclick={() => (ui.dialog = 'pointbuy')}>Point-Buy</button>
+		<button type="button" class="btn" onclick={() => (ui.dialog = 'background')}>Hintergrund</button>
+	</section>
+
 	<section class="card pad">
 		<h2 class="section-title">Eigenes Feld anlegen</h2>
 		<form
@@ -66,7 +102,16 @@
 			<datalist id="group-names">
 				{#each allGroups as g (g)}<option value={g}></option>{/each}
 			</datalist>
-			<NumberInput value={newBase} onchange={(v) => (newBase = v)} label="Basiswert" />
+			<select class="select type" bind:value={newType} aria-label="Feldtyp">
+				<option value="number">Zahl</option>
+				<option value="dice">Würfelausdruck</option>
+				<option value="list">Liste</option>
+			</select>
+			{#if newType === 'number'}
+				<NumberInput value={newBase} onchange={(v) => (newBase = v)} label="Basiswert" />
+			{:else if newType === 'dice'}
+				<input class="input dice" aria-label="Würfel-Basiswert" bind:value={newDice} placeholder="1d6" />
+			{/if}
 			<button type="submit" class="btn primary" disabled={!newName.trim()}><Icon name="plus" size={18} /> Anlegen</button>
 		</form>
 		<p class="muted small">
@@ -81,7 +126,7 @@
 			<p class="muted small">Diese Modifikatoren haben kein (existierendes) Zielfeld. Feld wählen oder löschen.</p>
 			{#each unassigned as m (m.id)}
 				<div class="unassigned">
-					<span class="desc">{m.description || 'Modifikator'} <span class="muted">({sourceName(m) ?? 'Quelle fehlt'}) · {OP_SYMBOL[m.op]} {toDisplayExpr(m.expr, Object.values(c.fields))}</span></span>
+					<span class="desc">{m.description || 'Modifikator'}{#if m.importHint} <span class="hint">→ ursprünglich „{m.importHint}“</span>{/if} <span class="muted">({sourceName(m) ?? 'Quelle fehlt'}) · {OP_SYMBOL[m.op]} {toDisplayExpr(m.expr, Object.values(c.fields))}</span></span>
 					<FieldSelect value={null} onchange={(v) => v && updateModifier(m.id, { targetFieldId: v })} label="Zielfeld wählen" noneLabel="Feld wählen …" />
 					<button type="button" class="btn ghost danger small icon" aria-label="Modifikator löschen" onclick={() => deleteModifier(m.id)}><Icon name="trash" size={16} /></button>
 				</div>
@@ -112,7 +157,11 @@
 									<input class="input inline" list="group-names" value={f.group ?? ''} aria-label="Gruppe von {f.name}" onchange={(e) => updateField(f.id, 'group', (e.currentTarget as HTMLInputElement).value || undefined)} />
 								</td>
 								<td class="r">
-									{#if f.computed}<span class="muted small">gezählt</span>{:else}<NumberInput value={f.base} onchange={(v) => setFieldBase(f.id, v)} label="Basiswert {f.name}" width="72px" className="inline" />{/if}
+									{#if f.type === 'dice'}
+										<input class="input inline dice" value={f.diceBase ?? ''} aria-label="Basiswert {f.name}" onchange={(e) => setFieldDiceBase(f.id, (e.currentTarget as HTMLInputElement).value.trim())} />
+									{:else if f.type === 'list'}
+										<span class="muted small">{(f.listBase ?? []).length} Einträge</span>
+									{:else if f.computed}<span class="muted small">gezählt</span>{:else}<NumberInput value={f.base} onchange={(v) => setFieldBase(f.id, v)} label="Basiswert {f.name}" width="72px" className="inline" />{/if}
 								</td>
 								<td class="r"><FieldValue id={f.id} size="sm" /></td>
 								<td class="c">
@@ -152,6 +201,49 @@
 			<button type="submit" class="btn" disabled={!counterName.trim()}><Icon name="plus" size={18} /> Zähler</button>
 		</form>
 	</section>
+	<div class="two">
+		<section class="card pad">
+			<h2 class="section-title">Zauberlisten</h2>
+			<p class="muted small">Ein Zauber kann in mehreren Listen stehen. Löschen entfernt nur die Liste, nicht die Zauber.</p>
+			{#each spellLists as l (l.id)}
+				{@const used = usedIn('spellListId', l.id)}
+				<div class="counter-row">
+					<input class="input inline" value={l.name} aria-label="Name der Zauberliste" oninput={(e) => renameSpellList(l.id, (e.currentTarget as HTMLInputElement).value)} />
+					<span class="muted small">{l.spellIds.length} Zauber{used.length ? ` · in ${used.join(', ')}` : ''}</span>
+					{#if confirmDelete === l.id}
+						<button type="button" class="btn danger small" onclick={() => { deleteSpellList(l.id); confirmDelete = null; }}>Löschen</button>
+					{:else}
+						<button type="button" class="btn ghost danger small icon" aria-label="Zauberliste löschen" onclick={() => (confirmDelete = l.id)}><Icon name="trash" size={16} /></button>
+					{/if}
+				</div>
+			{/each}
+			<form class="create" onsubmit={(e) => { e.preventDefault(); if (listName.trim()) { addSpellList(listName); listName = ''; } }}>
+				<input class="input" placeholder="Neue Liste, z. B. Aus dem Stab" aria-label="Neue Zauberliste" bind:value={listName} />
+				<button type="submit" class="btn" disabled={!listName.trim()}><Icon name="plus" size={18} /> Liste</button>
+			</form>
+		</section>
+
+		<section class="card pad">
+			<h2 class="section-title">Notizen</h2>
+			<p class="muted small">Notizen erscheinen über Textblöcke im Layout.</p>
+			{#each texts as t (t.id)}
+				{@const used = usedIn('textId', t.id)}
+				<div class="counter-row">
+					<input class="input inline" value={t.title} aria-label="Titel der Notiz" oninput={(e) => updateText(t.id, 'title', (e.currentTarget as HTMLInputElement).value)} />
+					<span class="muted small">{used.length ? `in ${used.join(', ')}` : 'nicht im Layout'}</span>
+					{#if confirmDelete === t.id}
+						<button type="button" class="btn danger small" onclick={() => { deleteText(t.id); confirmDelete = null; }}>Löschen</button>
+					{:else}
+						<button type="button" class="btn ghost danger small icon" aria-label="Notiz löschen" onclick={() => (confirmDelete = t.id)}><Icon name="trash" size={16} /></button>
+					{/if}
+				</div>
+			{/each}
+			<form class="create" onsubmit={(e) => { e.preventDefault(); if (textName.trim()) { addText(textName); textName = ''; } }}>
+				<input class="input" placeholder="Neue Notiz" aria-label="Neue Notiz" bind:value={textName} />
+				<button type="submit" class="btn" disabled={!textName.trim()}><Icon name="plus" size={18} /> Notiz</button>
+			</form>
+		</section>
+	</div>
 </div>
 
 <style>
@@ -169,6 +261,18 @@
 	.warn {
 		border-color: var(--accent);
 	}
+	.exchange {
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+	}
+	.exchange > div {
+		flex: 1;
+	}
+	.hint {
+		color: var(--accent);
+		font-size: 13px;
+	}
 	.create {
 		display: flex;
 		gap: 8px;
@@ -179,6 +283,12 @@
 	}
 	.create .group {
 		flex: 1;
+	}
+	.create .type {
+		width: 170px;
+	}
+	.dice {
+		width: 110px;
 	}
 	.small {
 		font-size: 13px;
@@ -240,5 +350,11 @@
 	}
 	.counter-row .input {
 		flex: 1;
+	}
+	.two {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 14px;
+		align-items: start;
 	}
 </style>

@@ -3,7 +3,7 @@
 
 export type Id = string;
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export interface Character {
 	schemaVersion: number;
@@ -30,11 +30,18 @@ export interface CharacterMeta {
 	lastExportedAt?: string;
 }
 
+export type FieldType = 'number' | 'dice' | 'list';
+
 export interface Field {
 	id: Id; // Standardfelder: feste IDs wie 'std.ac'
 	name: string;
-	type: 'number'; // später: 'dice' | 'list'
+	type: FieldType;
+	/** Basiswert bei Zahlenfeldern. */
 	base: number;
+	/** Basiswert bei Würfelfeldern, z. B. „1d8“ (ohne Referenzen). */
+	diceBase?: string;
+	/** Basiswert bei Listenfeldern, z. B. Sprachen. */
+	listBase?: string[];
 	notes?: string;
 	group?: string;
 	order: number;
@@ -60,6 +67,8 @@ export interface Modifier {
 	description: string;
 	source: { kind: SourceKind; id: Id };
 	order: number;
+	/** Bei importierten Modifikatoren: Name des ursprünglichen Zielfelds (Hilfe beim Zuordnen). */
+	importHint?: string;
 }
 
 export interface Item {
@@ -126,6 +135,9 @@ export interface Spell {
 	duration?: string;
 	description: string;
 	tags: string[];
+	concentration?: boolean;
+	ritual?: boolean;
+	notes?: string;
 }
 
 export interface SpellList {
@@ -154,14 +166,56 @@ export interface Tab {
 	blocks: Block[];
 }
 
+export type BlockType = 'field' | 'fieldGroup' | 'counter' | 'container' | 'cardList' | 'text';
+
 export interface Block {
 	id: Id;
-	type: 'field' | 'fieldGroup' | 'counter' | 'container' | 'cardList' | 'text';
+	type: BlockType;
+	/** Rasterposition: 12 Spalten, Zeilenhöhe fest. */
 	x: number;
 	y: number;
 	w: number;
 	h: number;
+	/** Überschrift des Bausteins; leer = automatisch (z. B. Gruppenname). */
+	title?: string;
 	config: Record<string, unknown>;
+}
+
+/** Typisierte Sicht auf `Block.config` je Bausteintyp. */
+export interface FieldBlockConfig {
+	fieldId: Id;
+	/** −/+ zum schnellen Ändern des Basiswerts (z. B. TP aktuell). */
+	stepper?: boolean;
+}
+
+export interface FieldGroupBlockConfig {
+	/** Alle sichtbaren Felder dieser Gruppe – neue Felder erscheinen automatisch. */
+	group?: string;
+	/** Oder eine feste Auswahl von Feldern. */
+	fieldIds?: Id[];
+	display?: 'list' | 'tiles';
+}
+
+export interface CounterBlockConfig {
+	group?: string;
+	counterIds?: Id[];
+}
+
+export interface ContainerBlockConfig {
+	containerId: Id;
+}
+
+export type CardListKind = 'ability' | 'condition' | 'spells' | 'equipped';
+
+export interface CardListBlockConfig {
+	kind: CardListKind;
+	/** Bei kind = 'spells': die Zauberliste; leer = alle Zauber. */
+	spellListId?: Id;
+	showDescriptions?: boolean;
+}
+
+export interface TextBlockConfig {
+	textId: Id;
 }
 
 /** Eine einzelne Wertänderung an einem Pfad im Charakter (undefined = Eintrag existiert nicht). */

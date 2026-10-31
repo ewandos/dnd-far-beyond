@@ -1,8 +1,9 @@
 // Berechnungs-Engine: Basiswert → Setzen → Addieren → Multiplizieren/Teilen.
 // Deterministisch, ohne D&D-Regelwissen, ohne UI-Abhängigkeit.
 
+import { addDice, average, emptyDice, evalDiceTerms, formatDice, parseDiceExpr, parseListText, type DiceLookup, type DiceParse, type DiceValue } from './dice';
 import { evalAst, parseExpr, type Node } from './formula';
-import type { Character, Field, Id, Modifier, Operation, ProficiencyLevel, Rounding } from './types';
+import type { Character, Field, FieldType, Id, Modifier, Operation, ProficiencyLevel, Rounding } from './types';
 
 export type Stage = 'set' | 'add' | 'mul';
 
@@ -30,6 +31,10 @@ export interface Step {
 	refs: Id[];
 	/** Setzen-Modifikator, der im Konflikt unterlegen ist. */
 	overridden?: boolean;
+	/** Bei Würfel- und Listenfeldern: Beitrag, Stand davor und danach als Text. */
+	text?: string;
+	beforeText?: string;
+	afterText?: string;
 }
 
 export type IssueKind = 'parse' | 'missingRef' | 'cycle' | 'math';
@@ -49,6 +54,11 @@ export interface InactiveEntry {
 
 export interface FieldResult {
 	fieldId: Id;
+	kind: FieldType;
+	/** Anzeige bei Würfel- und Listenfeldern („1d8 + 3“, „Elfisch, Zwergisch“). */
+	text?: string;
+	dice?: DiceValue;
+	list?: string[];
 	base: number;
 	/** Erklärung, falls der Basiswert gezählt statt eingegeben wird. */
 	baseNote?: string;
@@ -68,6 +78,7 @@ export interface ModifierStatus {
 	state: ModifierState;
 	reason?: string;
 	value?: number;
+	text?: string;
 	issue?: Issue;
 }
 
@@ -137,10 +148,17 @@ export function countAttunedItems(c: Character): number {
 
 interface Candidate {
 	mod: Modifier;
-	ast: Node;
+	/** Zahlenfelder */
+	ast?: Node;
+	/** Würfelfelder */
+	dice?: Extract<DiceParse, { ok: true }>['terms'];
+	/** Listenfelder */
+	list?: string[];
 	refs: Id[];
 	factor?: number;
 }
+
+const kindOf = (f: Field | undefined): FieldType => f?.type ?? 'number';
 
 function byOrder(a: { order: number; id: Id }, b: { order: number; id: Id }) {
 	return a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -201,7 +219,20 @@ export function evaluate(c: Character, previous?: Evaluation): Evaluation {
 			statuses[m.id] = { state: 'inactive', reason: src.reason };
 			continue;
 		}
-		const parsed = parseExpr(m.expr);
+		const targetKind = kindOf(fields[target]);
+		if (targetKind !== 'number' && (m.op === 'multiply' || m.op === 'divide')) {
+			fail(target, { modifierId: m.id, kind: 'parse', message: 'Bei Würfel- und Listenfeldern nur Setzen und Addieren' });
+			continue;
+		}
+		if (targetKind !== 'number' && src.factor !== undefined) {
+			fail(target, { modifierId: m.id, kind: 'parse', message: 'Übung wirkt nur auf Zahlenfelder' });
+			continue;
+		}
+		if (targetKind === 'list') {
+			pushTo(candidatesByField, target, { mod: m, list: parseListText(m.expr), refs: [] });
+			continue;
+		}
+		const parsed = targetKind === 'dice' ? parseDiceExpr(m.expr) : parseExpr(m.expr);
 		if (!parsed.ok) {
 			fail(target, { modifierId: m.id, kind: 'parse', message: parsed.error });
 			continue;
@@ -215,7 +246,17 @@ export function evaluate(c: Character, previous?: Evaluation): Evaluation {
 			});
 			continue;
 		}
-		pushTo(candidatesByField, target, { mod: m, ast: parsed.ast, refs: parsed.refs, factor: src.factor });
+		// Zahlenformeln brauchen Zahlenfelder; Würfelausdrücke dürfen auch Würfelfelder enthalten.
+		const wrong = parsed.refs.find((r) => {
+			const k = kindOf(fields[r]);
+			return k === 'list' || (k === 'dice' && targetKind === 'number');
+		});
+		if (wrong) {
+			fail(target, { modifierId: m.id, kind: 'parse', message: `„${fields[wrong].name}“ ist kein Zahlenfeld` });
+			continue;
+		}
+		if ('ast' in parsed) pushTo(candidatesByField, target, { mod: m, ast: parsed.ast, refs: parsed.refs, factor: src.factor });
+		else pushTo(candidatesByField, target, { mod: m, dice: parsed.terms, refs: parsed.refs });
 	}
 
 	// 2. Abhängigkeitsgraph und Zyklen (Tarjan).
@@ -268,6 +309,9 @@ export function evaluate(c: Character, previous?: Evaluation): Evaluation {
 		const fieldDeps = deps.get(id) ?? [];
 		const fingerprint = JSON.stringify([
 			base,
+			field.type ?? 'number',
+			field.diceBase ?? '',
+			field.listBase ?? [],
 			field.computed ?? '',
 			cands.map((x) => [x.mod.id, x.mod.op, x.mod.expr, x.mod.rounding ?? '', x.factor ?? '']),
 			inactive,
@@ -280,7 +324,17 @@ export function evaluate(c: Character, previous?: Evaluation): Evaluation {
 			continue;
 		}
 
-		const result = evaluateField(field, base, cands, inactive, issues, fieldDeps, fingerprint, (ref) => results[ref]?.value);
+		const kind = kindOf(field);
+		const result =
+			kind === 'dice'
+				? evaluateDiceField(field, cands, inactive, issues, fieldDeps, fingerprint, (ref) => {
+						const r = results[ref];
+						if (!r) return undefined;
+						return r.kind === 'dice' ? { kind: 'dice', value: r.dice ?? emptyDice() } : { kind: 'number', value: r.value };
+					})
+				: kind === 'list'
+					? evaluateListField(field, cands, inactive, issues, fingerprint)
+					: evaluateField(field, base, cands, inactive, issues, fieldDeps, fingerprint, (ref) => results[ref]?.value);
 		if (field.computed === 'attunedItems') {
 			result.baseNote = `gezählt: ${attunedCount} ausgerüstete${attunedCount === 1 ? 's' : ''} Item${attunedCount === 1 ? '' : 's'} mit Einstimmung`;
 		}
@@ -290,13 +344,13 @@ export function evaluate(c: Character, previous?: Evaluation): Evaluation {
 		}
 		results[id] = result;
 		recomputed.push(id);
-		if (!prev || prev.value !== result.value) changed.add(id);
+		if (!prev || prev.value !== result.value || prev.text !== result.text) changed.add(id);
 	}
 
 	// 5. Status der angewendeten Modifikatoren (auch für wiederverwendete Ergebnisse).
 	for (const r of Object.values(results)) {
 		for (const s of r.steps) {
-			statuses[s.modifierId] = { state: s.overridden ? 'overridden' : 'applied', value: s.value };
+			statuses[s.modifierId] = { state: s.overridden ? 'overridden' : 'applied', value: s.value, ...(s.text !== undefined ? { text: s.text } : {}) };
 			if (s.overridden) statuses[s.modifierId].reason = 'Konflikt: höherer Setzen-Wert gilt';
 		}
 		for (const issue of r.issues) {
@@ -333,7 +387,7 @@ function evaluateField(
 	const evaluated: { cand: Candidate; raw: number; value: number }[] = [];
 
 	for (const cand of cands) {
-		const r = evalAst(cand.ast, lookup);
+		const r = evalAst(cand.ast!, lookup);
 		if (!r.ok) {
 			issues.push({ modifierId: cand.mod.id, kind: 'math', message: r.error });
 			continue;
@@ -412,6 +466,7 @@ function evaluateField(
 
 	return {
 		fieldId: field.id,
+		kind: 'number',
 		base,
 		value: cleanNumber(v),
 		steps,
@@ -426,6 +481,158 @@ function evaluateField(
 /** Glättet Fließkomma-Artefakte (0.1 + 0.2). */
 function cleanNumber(v: number): number {
 	return Math.round(v * 1e9) / 1e9;
+}
+
+function evaluateDiceField(
+	field: Field,
+	cands: Candidate[],
+	inactive: InactiveEntry[],
+	knownIssues: Issue[],
+	deps: Id[],
+	fingerprint: string,
+	lookup: DiceLookup
+): FieldResult {
+	const issues = [...knownIssues];
+	const steps: Step[] = [];
+	let baseNote: string | undefined;
+	let v: DiceValue = emptyDice();
+	const baseParse = parseDiceExpr(field.diceBase?.trim() || '0');
+	if (baseParse.ok && !baseParse.refs.length) {
+		const r = evalDiceTerms(baseParse.terms, () => undefined);
+		if (r.ok) v = r.value;
+	} else {
+		baseNote = 'Basiswert ungültig – nur Würfel und Zahlen, z. B. „1d8“';
+	}
+
+	const evaluated: { cand: Candidate; value: DiceValue }[] = [];
+	for (const cand of cands) {
+		const r = evalDiceTerms(cand.dice!, lookup);
+		if (!r.ok) issues.push({ modifierId: cand.mod.id, kind: 'math', message: r.error });
+		else evaluated.push({ cand, value: r.value });
+	}
+
+	const sets = evaluated.filter((e) => e.cand.mod.op === 'set');
+	let conflict: FieldResult['conflict'];
+	if (sets.length) {
+		let winner = sets[0];
+		for (const e of sets) if (average(e.value) > average(winner.value)) winner = e;
+		const before = formatDice(v);
+		v = { dice: { ...winner.value.dice }, flat: winner.value.flat };
+		for (const e of [winner, ...sets.filter((x) => x !== winner)]) {
+			const isWinner = e === winner;
+			steps.push({
+				modifierId: e.cand.mod.id,
+				op: 'set',
+				stage: 'set',
+				value: average(e.value),
+				rawValue: average(e.value),
+				before: 0,
+				after: 0,
+				refs: e.cand.refs,
+				text: formatDice(e.value),
+				beforeText: isWinner ? before : formatDice(v),
+				afterText: formatDice(v),
+				overridden: !isWinner || undefined
+			});
+		}
+		if (sets.length > 1) conflict = { modifierIds: sets.map((e) => e.cand.mod.id), winnerId: winner.cand.mod.id };
+	}
+	for (const e of evaluated.filter((x) => x.cand.mod.op === 'add')) {
+		const beforeText = formatDice(v);
+		v = addDice({ dice: { ...v.dice }, flat: v.flat }, e.value);
+		const text = formatDice(e.value);
+		steps.push({
+			modifierId: e.cand.mod.id,
+			op: 'add',
+			stage: 'add',
+			value: average(e.value),
+			rawValue: average(e.value),
+			before: 0,
+			after: 0,
+			refs: e.cand.refs,
+			text: /^[−-]/.test(text) ? text : `+ ${text}`,
+			beforeText,
+			afterText: formatDice(v)
+		});
+	}
+	const final = { dice: { ...v.dice }, flat: Math.round(v.flat * 1e9) / 1e9 };
+	for (const [s, n] of Object.entries(final.dice)) if (n === 0) delete final.dice[Number(s)];
+	return {
+		fieldId: field.id,
+		kind: 'dice',
+		base: 0,
+		baseNote,
+		text: formatDice(final),
+		dice: final,
+		value: average(final),
+		steps,
+		inactive,
+		issues,
+		conflict,
+		deps,
+		fingerprint
+	};
+}
+
+function evaluateListField(field: Field, cands: Candidate[], inactive: InactiveEntry[], issues: Issue[], fingerprint: string): FieldResult {
+	const steps: Step[] = [];
+	let list = [...(field.listBase ?? [])];
+	const fmt = (l: string[]) => (l.length ? l.join(', ') : '—');
+	const sets = cands.filter((x) => x.mod.op === 'set');
+	let conflict: FieldResult['conflict'];
+	if (sets.length) {
+		// Bei Listen gibt es kein „höher“: der erste Setzen-Modifikator gilt.
+		const before = fmt(list);
+		list = [...sets[0].list!];
+		sets.forEach((e, i) =>
+			steps.push({
+				modifierId: e.mod.id,
+				op: 'set',
+				stage: 'set',
+				value: e.list!.length,
+				rawValue: e.list!.length,
+				before: 0,
+				after: 0,
+				refs: [],
+				text: fmt(e.list!),
+				beforeText: i === 0 ? before : fmt(list),
+				afterText: fmt(list),
+				overridden: i > 0 || undefined
+			})
+		);
+		if (sets.length > 1) conflict = { modifierIds: sets.map((e) => e.mod.id), winnerId: sets[0].mod.id };
+	}
+	for (const e of cands.filter((x) => x.mod.op === 'add')) {
+		const beforeText = fmt(list);
+		for (const entry of e.list!) if (!list.some((x) => x.toLowerCase() === entry.toLowerCase())) list.push(entry);
+		steps.push({
+			modifierId: e.mod.id,
+			op: 'add',
+			stage: 'add',
+			value: e.list!.length,
+			rawValue: e.list!.length,
+			before: 0,
+			after: 0,
+			refs: [],
+			text: `+ ${fmt(e.list!)}`,
+			beforeText,
+			afterText: fmt(list)
+		});
+	}
+	return {
+		fieldId: field.id,
+		kind: 'list',
+		base: 0,
+		text: list.join(', '),
+		list,
+		value: list.length,
+		steps,
+		inactive,
+		issues,
+		conflict,
+		deps: [],
+		fingerprint
+	};
 }
 
 // ---------------------------------------------------------------------------

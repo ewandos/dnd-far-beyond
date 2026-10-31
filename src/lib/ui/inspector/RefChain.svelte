@@ -3,7 +3,7 @@
 	// dessen Aufschlüsselung – bis die ganze Kette sichtbar ist.
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { ui } from '$lib/store/ui.svelte';
-	import { formatEffect, formatNumber, formatValue } from '../format';
+	import { formatEffect, formatNumber, formatResult, formatValue } from '../format';
 	import Icon from '../components/Icon.svelte';
 	import RefChain from './RefChain.svelte';
 
@@ -23,15 +23,15 @@
 				{#if expandable}<Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} />{/if}
 			</button>
 			<button type="button" class="name" title="Zum Feld springen" onclick={() => ui.push({ kind: 'field', id: fieldId })}>@{field.name}</button>
-			<span class="val num">{formatValue(r.value, field)}</span>
+			<span class="val num">{formatResult(r, field)}</span>
 		</div>
 		{#if open}
 			<ul class="steps">
-				<li><span class="eff num">{formatNumber(r.base)}</span><span class="muted">Basiswert</span></li>
+				<li><span class="eff num">{r.kind === 'dice' ? field.diceBase || '0' : formatNumber(r.base)}</span><span class="muted">Basiswert</span></li>
 				{#each r.steps as s (s.modifierId)}
 					{@const m = c.modifiers[s.modifierId]}
 					<li class:overridden={s.overridden}>
-						<span class="eff num">{formatEffect(s.op, s.value)}</span>
+						<span class="eff num">{s.text ?? formatEffect(s.op, s.value)}</span>
 						<span class="desc">{m?.description || 'Modifikator'}</span>
 						{#if s.refs.length}
 							<div class="nested">

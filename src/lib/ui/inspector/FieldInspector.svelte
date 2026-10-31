@@ -2,11 +2,12 @@
 	// „Woher kommt dieser Wert?“ – Endwert, Basiswert und alle Modifikatoren in Auswertungsreihenfolge.
 	import type { Stage } from '$lib/engine/evaluate';
 	import { STD } from '$lib/model/defaults';
-	import { addProficiency, deleteField, PROFICIENCY_LABEL, setFieldBase, setProficiency, updateField } from '$lib/store/actions';
+	import { addProficiency, deleteField, PROFICIENCY_LABEL, setFieldBase, setFieldDiceBase, setFieldListBase, setProficiency, updateField } from '$lib/store/actions';
+	import ListEditor from '../components/ListEditor.svelte';
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { ui } from '$lib/store/ui.svelte';
 	import type { ProficiencyLevel } from '$lib/engine/types';
-	import { formatNumber, formatValue } from '../format';
+	import { FIELD_TYPE_LABEL, formatNumber, formatResult, formatValue } from '../format';
 	import { proficiencyFor, referencedBy } from '../fields';
 	import Icon from '../components/Icon.svelte';
 	import NumberInput from '../components/NumberInput.svelte';
@@ -19,6 +20,7 @@
 	const field = $derived(c.fields[id]);
 	const r = $derived(sheet.evaluation?.fields[id]);
 	const prof = $derived(proficiencyFor(c, id));
+	const kind = $derived(field?.type ?? 'number');
 	const usedBy = $derived(sheet.evaluation ? referencedBy(c, id, sheet.evaluation.fields) : []);
 	const isStd = $derived(id.startsWith('std.'));
 	let adding = $state(false);
@@ -54,14 +56,24 @@
 			/>
 		</header>
 
-		<section class="total">
+		<section class="total" class:textual={kind !== 'number'}>
 			<div class="final">
-				<span class="eyebrow">Endwert</span>
-				<span class="big num">{formatValue(r.value, field)}</span>
+				<span class="eyebrow">Endwert · {FIELD_TYPE_LABEL[kind]}</span>
+				<span class="big num">{formatResult(r, field)}</span>
 			</div>
 			<div class="base">
 				<span class="eyebrow">Basiswert</span>
-				{#if field.computed}
+				{#if kind === 'dice'}
+					<input
+						class="input"
+						value={field.diceBase ?? ''}
+						placeholder="z. B. 1d8"
+						aria-label="Basiswert {field.name}"
+						onchange={(e) => setFieldDiceBase(id, (e.currentTarget as HTMLInputElement).value.trim())}
+					/>
+				{:else if kind === 'list'}
+					<ListEditor value={field.listBase ?? []} onchange={(v) => setFieldListBase(id, v)} label={field.name} />
+				{:else if field.computed}
 					<span class="num computed">{formatNumber(r.base)}</span>
 				{:else}
 					<NumberInput value={field.base} onchange={(v) => setFieldBase(id, v)} label="Basiswert {field.name}" width="96px" />
@@ -103,7 +115,7 @@
 			<h3 class="section-title">Auswertung</h3>
 			<div class="stage">
 				<div class="stage-row">
-					<span class="effect num">{formatNumber(r.base)}</span>
+					<span class="effect num">{kind === 'dice' ? field.diceBase || '0' : kind === 'list' ? (field.listBase ?? []).join(', ') || '—' : formatNumber(r.base)}</span>
 					<span>{field.computed ? 'Gezählter Basiswert' : 'Basiswert'}</span>
 				</div>
 			</div>
@@ -120,7 +132,7 @@
 			{/each}
 			<div class="stage result">
 				<div class="stage-row">
-					<span class="effect num">{formatValue(r.value, field)}</span>
+					<span class="effect num">{formatResult(r, field)}</span>
 					<span>Endwert</span>
 				</div>
 			</div>
@@ -151,7 +163,7 @@
 					<button type="button" class="btn" onclick={() => (adding = true)}>
 						<Icon name="plus" size={18} /> Modifikator hinzufügen
 					</button>
-					{#if !prof && c.fields[STD.prof]}
+					{#if !prof && c.fields[STD.prof] && kind === 'number'}
 						<button type="button" class="btn ghost" title="Übungs-Quelle mit @Übungsbonus × Stufe" onclick={() => addProficiency(id, STD.prof)}>
 							Übungs-Quelle
 						</button>
@@ -189,7 +201,7 @@
 				<input type="checkbox" checked={!!field.hidden} onchange={(e) => updateField(id, 'hidden', (e.currentTarget as HTMLInputElement).checked || undefined)} />
 				Ausblenden
 			</label>
-			<label class="check small">
+			<label class="check small" hidden={kind !== 'number'}>
 				<input
 					type="checkbox"
 					checked={field.format === 'signed'}
@@ -202,7 +214,7 @@
 				class="btn ghost small"
 				onclick={() => {
 					ui.historyFilter = field.name;
-					ui.tab = 'history';
+					ui.tab = 'sys.history';
 				}}
 			>
 				<Icon name="history" size={16} /> Verlauf
@@ -257,6 +269,17 @@
 	}
 	.base {
 		align-items: flex-end;
+	}
+	.total.textual {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.total.textual .base {
+		align-items: stretch;
+	}
+	.total.textual .big {
+		font-size: 26px;
+		line-height: 1.25;
 	}
 	.big {
 		font-size: 44px;
