@@ -23,6 +23,9 @@ npm run test:e2e     # Playwright: Abnahmekriterien auf Laptop und iPad hochkant
 npm run check        # svelte-check / TypeScript strikt
 ```
 
+Jeder Pull Request durchläuft `.github/workflows/ci.yml`: Typprüfung, Unit-Tests und die
+Playwright-Tests; bei Fehlschlägen liegt der Playwright-Bericht als Artefakt bereit.
+
 Auslieferung über GitHub Pages: `.github/workflows/deploy.yml` baut mit
 `BASE_PATH=/<repo-name>` und veröffentlicht `build/`. Für jeden anderen Static-Host
 genügt `npm run build` (bei Unterpfad `BASE_PATH` setzen).
