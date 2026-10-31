@@ -4,6 +4,12 @@
 	import {
 		addCounter,
 		addField,
+		addSpellList,
+		addText,
+		deleteSpellList,
+		deleteText,
+		renameSpellList,
+		updateText,
 		deleteCounter,
 		deleteModifier,
 		renameCounter,
@@ -34,6 +40,14 @@
 	let newBase = $state(0);
 	let filter = $state('');
 	let counterName = $state('');
+	let listName = $state('');
+	let textName = $state('');
+	let confirmDelete = $state<string | null>(null);
+	const spellLists = $derived(Object.values(c.spellLists).sort((a, b) => a.order - b.order));
+	const texts = $derived(Object.values(c.texts).sort((a, b) => a.order - b.order));
+	/** Wird die Liste bzw. Notiz in einem Baustein verwendet? */
+	const usedIn = (key: 'spellListId' | 'textId', id: string) =>
+		c.layout.tabs.filter((t) => t.blocks.some((b) => b.config[key] === id)).map((t) => t.name);
 
 	function create() {
 		if (!newName.trim()) return;
@@ -152,6 +166,49 @@
 			<button type="submit" class="btn" disabled={!counterName.trim()}><Icon name="plus" size={18} /> Zähler</button>
 		</form>
 	</section>
+	<div class="two">
+		<section class="card pad">
+			<h2 class="section-title">Zauberlisten</h2>
+			<p class="muted small">Ein Zauber kann in mehreren Listen stehen. Löschen entfernt nur die Liste, nicht die Zauber.</p>
+			{#each spellLists as l (l.id)}
+				{@const used = usedIn('spellListId', l.id)}
+				<div class="counter-row">
+					<input class="input inline" value={l.name} aria-label="Name der Zauberliste" oninput={(e) => renameSpellList(l.id, (e.currentTarget as HTMLInputElement).value)} />
+					<span class="muted small">{l.spellIds.length} Zauber{used.length ? ` · in ${used.join(', ')}` : ''}</span>
+					{#if confirmDelete === l.id}
+						<button type="button" class="btn danger small" onclick={() => { deleteSpellList(l.id); confirmDelete = null; }}>Löschen</button>
+					{:else}
+						<button type="button" class="btn ghost danger small icon" aria-label="Zauberliste löschen" onclick={() => (confirmDelete = l.id)}><Icon name="trash" size={16} /></button>
+					{/if}
+				</div>
+			{/each}
+			<form class="create" onsubmit={(e) => { e.preventDefault(); if (listName.trim()) { addSpellList(listName); listName = ''; } }}>
+				<input class="input" placeholder="Neue Liste, z. B. Aus dem Stab" aria-label="Neue Zauberliste" bind:value={listName} />
+				<button type="submit" class="btn" disabled={!listName.trim()}><Icon name="plus" size={18} /> Liste</button>
+			</form>
+		</section>
+
+		<section class="card pad">
+			<h2 class="section-title">Notizen</h2>
+			<p class="muted small">Notizen erscheinen über Textblöcke im Layout.</p>
+			{#each texts as t (t.id)}
+				{@const used = usedIn('textId', t.id)}
+				<div class="counter-row">
+					<input class="input inline" value={t.title} aria-label="Titel der Notiz" oninput={(e) => updateText(t.id, 'title', (e.currentTarget as HTMLInputElement).value)} />
+					<span class="muted small">{used.length ? `in ${used.join(', ')}` : 'nicht im Layout'}</span>
+					{#if confirmDelete === t.id}
+						<button type="button" class="btn danger small" onclick={() => { deleteText(t.id); confirmDelete = null; }}>Löschen</button>
+					{:else}
+						<button type="button" class="btn ghost danger small icon" aria-label="Notiz löschen" onclick={() => (confirmDelete = t.id)}><Icon name="trash" size={16} /></button>
+					{/if}
+				</div>
+			{/each}
+			<form class="create" onsubmit={(e) => { e.preventDefault(); if (textName.trim()) { addText(textName); textName = ''; } }}>
+				<input class="input" placeholder="Neue Notiz" aria-label="Neue Notiz" bind:value={textName} />
+				<button type="submit" class="btn" disabled={!textName.trim()}><Icon name="plus" size={18} /> Notiz</button>
+			</form>
+		</section>
+	</div>
 </div>
 
 <style>
@@ -240,5 +297,11 @@
 	}
 	.counter-row .input {
 		flex: 1;
+	}
+	.two {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 14px;
+		align-items: start;
 	}
 </style>

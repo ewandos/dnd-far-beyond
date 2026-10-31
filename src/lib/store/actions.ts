@@ -11,6 +11,8 @@ import type {
 	Modifier,
 	Operation,
 	ProficiencyLevel,
+	Spell,
+	SpellList,
 	TextNote
 } from '$lib/engine/types';
 import { formatOp } from '$lib/ui/format';
@@ -611,4 +613,111 @@ export function deleteText(id: Id) {
 		title: `Notiz gelöscht: ${t.title}`,
 		changes: [{ path: ['texts', id], value: undefined }]
 	});
+}
+
+// ---------------------------------------------------------------------------
+// Zauber und Zauberlisten
+
+export function spellLevelLabel(level: number): string {
+	return level <= 0 ? 'Zaubertrick' : `Grad ${level}`;
+}
+
+export function addSpell(input: { name: string; level?: number }, listId?: Id): Id {
+	const c = current();
+	const id = newId();
+	const spell: Spell = {
+		id,
+		name: input.name.trim() || 'Neuer Zauber',
+		level: Math.max(0, Math.min(9, Math.round(input.level ?? 1))),
+		description: '',
+		tags: []
+	};
+	const changes: Change[] = [{ path: ['spells', id], value: spell }];
+	const list = listId ? c.spellLists[listId] : undefined;
+	if (list) changes.push({ path: ['spellLists', list.id, 'spellIds'], value: [...list.spellIds, id] });
+	sheet.commit({ kind: 'spell.add', target: id, title: `Zauber angelegt: ${spell.name}`, changes });
+	return id;
+}
+
+type SpellKey = 'name' | 'level' | 'school' | 'castingTime' | 'range' | 'components' | 'duration' | 'description' | 'tags' | 'concentration' | 'ritual' | 'notes';
+
+export function updateSpell<K extends SpellKey>(id: Id, key: K, value: Spell[K]) {
+	const s = current().spells[id];
+	if (!s) return;
+	const empty = value === '' || value === false;
+	sheet.commit({
+		kind: `spell.${key}`,
+		target: id,
+		title: `${s.name}: ${SPELL_PROP_LABEL[key]}`,
+		changes: [{ path: ['spells', id, key], value: empty && key !== 'name' && key !== 'description' ? undefined : value }],
+		coalesce: key !== 'concentration' && key !== 'ritual'
+	});
+}
+
+export const SPELL_PROP_LABEL: Record<SpellKey, string> = {
+	name: 'Name',
+	level: 'Grad',
+	school: 'Schule',
+	castingTime: 'Zeitaufwand',
+	range: 'Reichweite',
+	components: 'Komponenten',
+	duration: 'Wirkungsdauer',
+	description: 'Beschreibung',
+	tags: 'Tags',
+	concentration: 'Konzentration',
+	ritual: 'Ritual',
+	notes: 'Notizen'
+};
+
+export function deleteSpell(id: Id) {
+	const c = current();
+	const s = c.spells[id];
+	if (!s) return;
+	const changes: Change[] = [{ path: ['spells', id], value: undefined }];
+	for (const l of Object.values(c.spellLists)) {
+		if (l.spellIds.includes(id)) changes.push({ path: ['spellLists', l.id, 'spellIds'], value: l.spellIds.filter((x) => x !== id) });
+	}
+	sheet.commit({ kind: 'spell.delete', target: id, title: `Zauber gelöscht: ${s.name}`, changes });
+}
+
+export function setSpellInList(spellId: Id, listId: Id, inList: boolean) {
+	const c = current();
+	const l = c.spellLists[listId];
+	const s = c.spells[spellId];
+	if (!l || !s || l.spellIds.includes(spellId) === inList) return;
+	sheet.commit({
+		kind: 'spelllist.member',
+		target: listId,
+		title: `${s.name} ${inList ? '→' : '←'} ${l.name}`,
+		changes: [{ path: ['spellLists', listId, 'spellIds'], value: inList ? [...l.spellIds, spellId] : l.spellIds.filter((x) => x !== spellId) }]
+	});
+}
+
+export function addSpellList(name: string): Id {
+	const c = current();
+	const id = newId();
+	const list: SpellList = { id, name: name.trim() || 'Neue Liste', spellIds: [], order: nextOrder(c.spellLists) };
+	sheet.commit({ kind: 'spelllist.add', target: id, title: `Zauberliste angelegt: ${list.name}`, changes: [{ path: ['spellLists', id], value: list }] });
+	return id;
+}
+
+export function renameSpellList(id: Id, name: string) {
+	const l = current().spellLists[id];
+	if (!l) return;
+	sheet.commit({
+		kind: 'spelllist.name',
+		target: id,
+		title: 'Zauberliste umbenannt',
+		before: l.name,
+		after: name,
+		changes: [{ path: ['spellLists', id, 'name'], value: name }],
+		coalesce: true
+	});
+}
+
+/** Löscht nur die Liste – die Zauber selbst bleiben erhalten. */
+export function deleteSpellList(id: Id) {
+	const l = current().spellLists[id];
+	if (!l) return;
+	sheet.commit({ kind: 'spelllist.delete', target: id, title: `Zauberliste gelöscht: ${l.name}`, changes: [{ path: ['spellLists', id], value: undefined }] });
 }

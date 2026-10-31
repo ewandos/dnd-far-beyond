@@ -202,7 +202,7 @@
 				class="btn ghost small"
 				onclick={() => {
 					ui.historyFilter = field.name;
-					ui.tab = 'history';
+					ui.tab = 'sys.history';
 				}}
 			>
 				<Icon name="history" size={16} /> Verlauf

@@ -5,18 +5,16 @@ import type { Id } from '$lib/engine/types';
 export type Panel =
 	| { kind: 'field'; id: Id }
 	| { kind: 'item'; id: Id }
-	| { kind: 'ability'; id: Id };
+	| { kind: 'ability'; id: Id }
+	| { kind: 'spell'; id: Id };
 
-export type TabId = 'overview' | 'inventory' | 'abilities' | 'fields' | 'notes' | 'history';
+/** Feste Verwaltungsseiten neben den frei gestaltbaren Layout-Tabs. */
+export const SYSTEM_TABS = [
+	{ id: 'sys.fields', label: 'Verwaltung' },
+	{ id: 'sys.history', label: 'Verlauf' }
+] as const;
 
-export const TABS: { id: TabId; label: string }[] = [
-	{ id: 'overview', label: 'Übersicht' },
-	{ id: 'inventory', label: 'Inventar' },
-	{ id: 'abilities', label: 'Fähigkeiten' },
-	{ id: 'fields', label: 'Felder' },
-	{ id: 'notes', label: 'Notizen' },
-	{ id: 'history', label: 'Verlauf' }
-];
+export type SystemTabId = (typeof SYSTEM_TABS)[number]['id'];
 
 export type Theme = 'system' | 'light' | 'dark';
 
@@ -28,7 +26,10 @@ interface Toast {
 
 class UiState {
 	stack = $state<Panel[]>([]);
-	tab = $state<TabId>('overview');
+	/** ID eines Layout-Tabs oder einer Systemseite (sys.*). Leer = erster sichtbarer Tab. */
+	tab = $state<string>('');
+	/** Bearbeitungsmodus: Bausteine und Tabs anordnen. Spielmodus (Standard) fixiert das Layout. */
+	editMode = $state(false);
 	toasts = $state<Toast[]>([]);
 	theme = $state<Theme>('system');
 	/** Verlauf-Tab: vorbelegter Filter (z. B. „Historie dieses Feldes“). */

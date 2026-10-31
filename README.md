@@ -3,7 +3,7 @@
 Digitaler D&D-5e-Charakterbogen für eine Spielgruppe – **digitales Papier mit Transparenz**:
 keine Regel-Engine, aber jeder Zahlenwert ist inspizierbar („Warum habe ich RK 17?“ → ein Tipp).
 
-Umgesetzt ist **Phase 1 (MVP)** aus dem Design Document.
+Umgesetzt sind **Phase 1 (MVP)** und **Phase 2 (freies Layout und Spieltisch)** aus dem Design Document.
 
 ## Starten
 
@@ -35,9 +35,11 @@ src/lib/engine/    Reines TypeScript, keine UI-Abhängigkeit
   formula.ts       Tokenizer + Pratt-Parser, @-Referenzen, Anzeige ↔ Speicherform
   evaluate.ts      evaluate(character, previous?) – Reihenfolge, Konflikte, Zyklen,
                    inkrementelle Neuberechnung nur abhängiger Felder
-src/lib/model/     Standardcharakter (feste IDs std.*), Historie/Patches, Import/Migration
+src/lib/model/     Standardcharakter (feste IDs std.*), Startlayout, Raster-Logik,
+                   Historie/Patches, Import/Migration
 src/lib/store/     Svelte-5-Zustand (Runes), Aktionen mit Historie, IndexedDB (Dexie), Dateien
-src/lib/ui/        Komponenten, Tabs, Inspektionspanel, Drag & Drop (Pointer Events)
+src/lib/ui/        Komponenten, Layout-Raster und Bausteine, Inspektionspanel,
+                   Drag & Drop (Pointer Events)
 src/service-worker.ts  Offline-first-Cache aller App-Dateien
 ```
 
@@ -55,6 +57,21 @@ src/service-worker.ts  Offline-first-Cache aller App-Dateien
 - Einzige automatische Zählung: „Eingestimmte Items“; Überschreitung ist nur ein Hinweis.
 
 ## Bedienung
+
+- **Layout**: Jeder Charakter hat eigene Tabs mit frei anordenbaren Bausteinen (Feld, Feldgruppe,
+  Kästchen/Zähler, Container, Karten-Liste, Textblock) auf einem 12-Spalten-Raster.
+  **Spielmodus** (Standard) fixiert das Layout. Der Knopf **Layout** oben schaltet in den
+  **Bearbeitungsmodus**: Bausteine ziehen, an der Ecke unten rechts Größe ändern, über den Stift
+  einstellen, hinzufügen, entfernen; Tabs umbenennen, umsortieren, ausblenden, anlegen, löschen.
+  Mit der Tastatur: Baustein fokussieren, Pfeiltasten verschieben, Umschalt+Pfeil ändert die Größe.
+  Überdeckte Bausteine rutschen nach unten, nichts rückt von selbst nach oben. Layout-Änderungen
+  stehen in der Historie und lassen sich rückgängig machen.
+- **Zauber**: Zauberkarten mit Grad, Schule, Zeitaufwand, Reichweite, Komponenten, Dauer,
+  Konzentration/Ritual, Tags und Markdown-Beschreibung. Frei benennbare Zauberlisten (Start:
+  „Vorbereitet“, „Bekannt“); ein Zauber kann in mehreren Listen stehen. Zauberplätze sind
+  Zähler pro Grad („Anzahl ändern“ im Baustein). Konzentration lässt sich mit einem Tipp als
+  Zustand eintragen.
+- **Verwaltung**: Felder, nicht zugeordnete Modifikatoren, Zähler, Zauberlisten und Notizen.
 
 - **Wert antippen** → Inspektionspanel: Endwert, Basiswert (editierbar), alle Modifikatoren in
   Auswertungsreihenfolge mit Quelle, Formel, aufklappbaren Referenzketten, inaktive
@@ -81,10 +98,11 @@ Weitere Festlegungen: Bewegungsrate in Metern (Basis 9), schnelle Folgeänderung
 Wert werden innerhalb von 3 s zu einem Verlaufseintrag zusammengefasst, Import mit bereits
 vorhandener Charakter-ID fragt „Ersetzen“ oder „Als Kopie“.
 
-## Noch nicht umgesetzt (Phasen 2–4)
+Layout (Phase 2): ein Raster aus 12 Spalten mit 40 px Zeilenhöhe für Laptop und iPad. Unter
+1024 px Breite skaliert die ganze Seite proportional. Charaktere aus Phase 1 (Schema 1) erhalten
+beim Laden das neue Startlayout und die Zauberlisten „Vorbereitet“ und „Bekannt“.
 
-Freies Layout mit Tabs/Bausteinen und Bearbeitungsmodus, Zauberkarten und Zauberlisten,
+## Noch nicht umgesetzt (Phasen 3–4)
+
 Austausch einzelner Inhalte und 5eTools-Import, Point-Buy- und Hintergrund-Assistent,
-weitere Feldtypen. Das Datenmodell enthält `layout`, `spells` und `spellLists` bereits, damit
-diese Phasen ohne Umbau folgen können. Zähler (Trefferwürfel, Todesrettungswürfe,
-Zauberplätze) und Nutzungs-Kästchen an Fähigkeiten/Items sind schon nutzbar.
+weitere Feldtypen.

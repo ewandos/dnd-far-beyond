@@ -58,6 +58,20 @@ describe('Charakter-Datei', () => {
 		expect(evaluate(c).fields.a.value).toBe(3);
 	});
 
+	it('migriert Version 1: Zauberlisten und neues Startlayout', () => {
+		const v1 = createDefaultCharacter('Alt') as unknown as Record<string, unknown>;
+		v1.schemaVersion = 1;
+		v1.spellLists = {};
+		v1.layout = { tabs: [{ id: 'x', name: 'Übersicht', hidden: false, order: 0, blocks: [] }] };
+		(v1.items as Record<string, unknown>).weg = { id: 'weg', name: 'Verwaist', description: '', quantity: 1, requiresAttunement: false, containerId: 'gibtsnicht', order: 0 };
+		const c = parseCharacterFile(JSON.stringify(v1));
+		expect(c.schemaVersion).toBe(2);
+		expect(Object.values(c.spellLists).map((l) => l.name)).toEqual(['Vorbereitet', 'Bekannt']);
+		expect(c.layout.tabs.map((t) => t.name)).toEqual(['Übersicht', 'Inventar', 'Fähigkeiten', 'Zauber', 'Notizen']);
+		expect(c.layout.tabs[0].blocks.length).toBeGreaterThan(5);
+		expect(c.items.weg.containerId).toBe(STD.equipped);
+	});
+
 	it('lehnt kaputte oder zu neue Dateien mit verständlicher Meldung ab', () => {
 		expect(() => parseCharacterFile('kein json')).toThrow(ImportError);
 		expect(() => parseCharacterFile('[]')).toThrow(/keinen Charakter/);

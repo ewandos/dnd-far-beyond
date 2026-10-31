@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 // Abnahmekriterien MVP aus dem Design Document, als Ende-zu-Ende-Tests.
 
@@ -6,10 +7,10 @@ async function newCharacter(page: Page, name = 'Testheld') {
 	await page.goto('./');
 	await page.getByLabel('Name des neuen Charakters').fill(name);
 	await page.getByRole('button', { name: 'Neuer Charakter' }).click();
-	await expect(page.locator('.overview')).toBeVisible();
+	await expect(page.locator('[data-tab]')).toBeVisible();
 }
 
-const value = (page: Page, fieldId: string) => page.locator(`.overview [data-field="${fieldId}"]`).first();
+const value = (page: Page, fieldId: string) => page.locator(`[data-tab] [data-field="${fieldId}"]`).first();
 
 async function closePanel(page: Page) {
 	const close = page.locator('aside').getByRole('button', { name: 'Schließen', exact: true });
@@ -125,7 +126,7 @@ test('Athletik folgt STR-Mod und Übungsbonus; Expertise verdoppelt', async ({ p
 	await newCharacter(page);
 	await setBase(page, 'std.str_mod', 3);
 	await expect(value(page, 'std.skill_athletics')).toHaveText('+3');
-	const row = page.locator('.overview .row', { has: page.locator('[data-field="std.skill_athletics"]') });
+	const row = page.locator('[data-tab] .row', { has: page.locator('[data-field="std.skill_athletics"]') });
 	await row.getByRole('button', { name: /Übung: keine/ }).click();
 	await expect(value(page, 'std.skill_athletics')).toHaveText('+5');
 	await row.getByRole('button', { name: /Übung: geübt/ }).click();
@@ -152,8 +153,8 @@ test('Zirkelbezug wird angezeigt, ohne abzustürzen; Umbenennen bricht keine For
 	// Beide beteiligten Modifikatoren zählen nicht – der Rest rechnet weiter.
 	await expect(value(page, 'std.dex_mod')).toHaveText('+2');
 	await expect(value(page, 'std.initiative')).toHaveText('+0');
-	await expect(page.locator('.overview [data-field="std.initiative"] .flag.err')).toBeVisible();
-	await expect(page.locator('.overview [data-field="std.skill_acrobatics"]')).toHaveText('+2');
+	await expect(page.locator('[data-tab] [data-field="std.initiative"] .flag.err')).toBeVisible();
+	await expect(page.locator('[data-tab] [data-field="std.skill_acrobatics"]')).toHaveText('+2');
 
 	// Umbenennen
 	await panel.getByLabel('Feldname').fill('Geschick');
@@ -192,7 +193,7 @@ test('Export, Löschen und Re-Import ergibt denselben Bogen', async ({ page }) =
 	await page.getByRole('link', { name: /Exportheld/ }).click();
 	await expect(value(page, 'std.ac')).toHaveText('16');
 	await expect(page.getByText('Ring des Schutzes').first()).toBeVisible();
-	await page.getByRole('button', { name: 'Verlauf' }).click();
+	await page.locator('nav').getByRole('button', { name: 'Verlauf' }).click();
 	await expect(page.locator('.history').getByText('Item angelegt: Ring des Schutzes').first()).toBeVisible();
 });
 
@@ -214,6 +215,6 @@ test('App startet offline (Service Worker)', async ({ page, context }) => {
 	await expect(page.getByRole('heading', { name: 'Charakterbogen' })).toBeVisible();
 	await page.getByLabel('Name des neuen Charakters').fill('Offline');
 	await page.getByRole('button', { name: 'Neuer Charakter' }).click();
-	await expect(page.locator('.overview')).toBeVisible();
+	await expect(page.locator('[data-tab]')).toBeVisible();
 	await context.setOffline(false);
 });

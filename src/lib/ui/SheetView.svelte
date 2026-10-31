@@ -3,21 +3,28 @@
 	import { renameCharacter } from '$lib/store/actions';
 	import { exportCharacterFile } from '$lib/store/files';
 	import { sheet } from '$lib/store/sheet.svelte';
-	import { TABS, ui } from '$lib/store/ui.svelte';
+	import { SYSTEM_TABS, ui } from '$lib/store/ui.svelte';
+	import { addTab, deleteTab, moveTab, renameTab, setTabHidden } from '$lib/store/layoutActions';
 	import { relativeTime } from './format';
 	import DragGhost from './components/DragGhost.svelte';
 	import FieldValue from './components/FieldValue.svelte';
 	import Icon from './components/Icon.svelte';
 	import Inspector from './inspector/Inspector.svelte';
-	import Abilities from './tabs/Abilities.svelte';
+	import LayoutGrid from './layout/LayoutGrid.svelte';
 	import Fields from './tabs/Fields.svelte';
 	import History from './tabs/History.svelte';
-	import Inventory from './tabs/Inventory.svelte';
-	import Notes from './tabs/Notes.svelte';
-	import Overview from './tabs/Overview.svelte';
 
 	let { onexported }: { onexported?: () => void } = $props();
 	const c = $derived(sheet.character!);
+
+	const layoutTabs = $derived([...c.layout.tabs].sort((a, b) => a.order - b.order));
+	const visibleTabs = $derived(ui.editMode ? layoutTabs : layoutTabs.filter((t) => !t.hidden));
+	const isSystem = (id: string) => SYSTEM_TABS.some((t) => t.id === id);
+	// Aktiver Tab: gewählter Layout-Tab bzw. Systemseite, sonst der erste sichtbare.
+	const activeTab = $derived(
+		isSystem(ui.tab) || visibleTabs.some((t) => t.id === ui.tab) ? ui.tab : (visibleTabs[0]?.id ?? SYSTEM_TABS[0].id)
+	);
+	let confirmTabDelete = $state<string | null>(null);
 
 	let now = $state(Date.now());
 	$effect(() => {
@@ -69,6 +76,21 @@
 			</span>
 		{/if}
 		<span class="spacer"></span>
+		<button
+			type="button"
+			class="btn mode"
+			class:primary={ui.editMode}
+			aria-pressed={ui.editMode}
+			aria-label="Layout bearbeiten"
+			title={ui.editMode ? 'Zurück zum Spielmodus' : 'Tabs und Bausteine anordnen'}
+			onclick={() => {
+				ui.editMode = !ui.editMode;
+				if (ui.editMode) ui.close();
+			}}
+		>
+			<Icon name={ui.editMode ? 'check' : 'edit'} size={18} />
+			{ui.editMode ? 'Fertig' : 'Layout'}
+		</button>
 		<button type="button" class="btn ghost icon" disabled={!sheet.canUndo} aria-label="Rückgängig" title="Rückgängig (⌘/Strg+Z)" onclick={() => sheet.undo()}><Icon name="undo" /></button>
 		<button type="button" class="btn ghost icon" disabled={!sheet.canRedo} aria-label="Wiederholen" title="Wiederholen (⌘/Strg+Umschalt+Z)" onclick={() => sheet.redo()}><Icon name="redo" /></button>
 		<button
@@ -89,22 +111,50 @@
 		</button>
 	</header>
 
-	<nav class="tabs" aria-label="Bereiche">
-		{#each TABS as t (t.id)}
-			<button type="button" class="tab" class:active={ui.tab === t.id} aria-current={ui.tab === t.id ? 'page' : undefined} onclick={() => (ui.tab = t.id)}>
+	<nav class="tabs" class:editing={ui.editMode} aria-label="Bereiche">
+		{#each visibleTabs as t, i (t.id)}
+			{#if ui.editMode}
+				<div class="tab-edit" class:active={activeTab === t.id} class:hidden-tab={t.hidden}>
+					<input
+						class="input inline"
+						value={t.name}
+						aria-label="Tabname"
+						onfocus={() => (ui.tab = t.id)}
+						oninput={(e) => renameTab(t.id, (e.currentTarget as HTMLInputElement).value)}
+					/>
+					<button type="button" class="btn ghost small icon" aria-label="Nach links" disabled={i === 0} onclick={() => moveTab(t.id, -1)}><Icon name="back" size={16} /></button>
+					<button type="button" class="btn ghost small icon" aria-label="Nach rechts" disabled={i === visibleTabs.length - 1} onclick={() => moveTab(t.id, 1)}><Icon name="chevronRight" size={16} /></button>
+					<button type="button" class="btn ghost small icon" aria-label={t.hidden ? 'Einblenden' : 'Ausblenden'} title={t.hidden ? 'Ausgeblendet' : 'Sichtbar'} onclick={() => setTabHidden(t.id, !t.hidden)}>
+						<Icon name={t.hidden ? 'eyeOff' : 'eye'} size={16} />
+					</button>
+					{#if confirmTabDelete === t.id}
+						<button type="button" class="btn danger small" onclick={() => { deleteTab(t.id); confirmTabDelete = null; }}>Löschen</button>
+					{:else}
+						<button type="button" class="btn ghost small icon" aria-label="Tab löschen" onclick={() => (confirmTabDelete = t.id)}><Icon name="trash" size={16} /></button>
+					{/if}
+				</div>
+			{:else}
+				<button type="button" class="tab" class:active={activeTab === t.id} aria-current={activeTab === t.id ? 'page' : undefined} onclick={() => (ui.tab = t.id)}>
+					{t.name || 'Ohne Namen'}
+				</button>
+			{/if}
+		{/each}
+		{#if ui.editMode}
+			<button type="button" class="btn ghost small" onclick={() => (ui.tab = addTab('Neuer Tab'))}><Icon name="plus" size={16} /> Tab</button>
+		{/if}
+		<span class="spacer"></span>
+		{#each SYSTEM_TABS as t (t.id)}
+			<button type="button" class="tab system" class:active={activeTab === t.id} aria-current={activeTab === t.id ? 'page' : undefined} onclick={() => (ui.tab = t.id)}>
 				{t.label}
-				{#if t.id === 'fields' && (sheet.evaluation?.unassigned.length ?? 0) > 0}<span class="badge">{sheet.evaluation?.unassigned.length}</span>{/if}
+				{#if t.id === 'sys.fields' && (sheet.evaluation?.unassigned.length ?? 0) > 0}<span class="badge">{sheet.evaluation?.unassigned.length}</span>{/if}
 			</button>
 		{/each}
 	</nav>
 
-	<main>
-		{#if ui.tab === 'overview'}<Overview />
-		{:else if ui.tab === 'inventory'}<Inventory />
-		{:else if ui.tab === 'abilities'}<Abilities />
-		{:else if ui.tab === 'fields'}<Fields />
-		{:else if ui.tab === 'notes'}<Notes />
-		{:else if ui.tab === 'history'}<History />
+	<main class:editing={ui.editMode}>
+		{#if activeTab === 'sys.fields'}<Fields />
+		{:else if activeTab === 'sys.history'}<History />
+		{:else}<LayoutGrid tabId={activeTab} />
 		{/if}
 	</main>
 </div>
@@ -215,6 +265,37 @@
 		color: var(--accent-text);
 		font-size: 11px;
 		font-weight: 700;
+	}
+	.tabs.editing {
+		background: var(--accent-soft);
+		padding-bottom: 6px;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	.tab-edit {
+		display: flex;
+		align-items: center;
+		gap: 0;
+		padding: 2px 4px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+	}
+	.tab-edit.active {
+		border-color: var(--accent);
+	}
+	.tab-edit.hidden-tab .input {
+		opacity: 0.5;
+		text-decoration: line-through;
+	}
+	.tab-edit .input {
+		width: 130px;
+		min-height: 36px;
+		font-weight: 600;
+	}
+	.tab.system {
+		font-size: 14px;
 	}
 	main {
 		padding: 16px;
