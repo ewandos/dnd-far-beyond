@@ -16,6 +16,7 @@
 		ui.close();
 		ui.tab = '';
 		ui.editMode = false;
+		ui.dialog = null;
 		ui.historyFilter = '';
 		loadCharacter(current)
 			.then((c) => {

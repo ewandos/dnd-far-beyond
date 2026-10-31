@@ -11,6 +11,8 @@
 	import Icon from './components/Icon.svelte';
 	import Inspector from './inspector/Inspector.svelte';
 	import LayoutGrid from './layout/LayoutGrid.svelte';
+	import ExportDialog from './content/ExportDialog.svelte';
+	import ImportDialog from './content/ImportDialog.svelte';
 	import Fields from './tabs/Fields.svelte';
 	import History from './tabs/History.svelte';
 
@@ -102,6 +104,9 @@
 		>
 			<Icon name={ui.theme === 'system' ? 'monitor' : ui.theme === 'light' ? 'sun' : 'moon'} />
 		</button>
+		<button type="button" class="btn ghost icon" aria-label="Inhalte importieren" title="Inhalte importieren (vom SL oder aus 5eTools)" onclick={() => (ui.dialog = 'import')}>
+			<Icon name="upload" />
+		</button>
 		<button type="button" class="btn export" class:stale={exportStale} onclick={doExport} title="Als JSON-Datei sichern">
 			<Icon name="download" size={18} />
 			<span class="export-text">
@@ -161,6 +166,8 @@
 
 <Inspector />
 <DragGhost />
+{#if ui.dialog === 'import'}<ImportDialog onclose={() => (ui.dialog = null)} />{/if}
+{#if ui.dialog === 'export'}<ExportDialog onclose={() => (ui.dialog = null)} />{/if}
 
 <style>
 	.sheet {

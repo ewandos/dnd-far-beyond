@@ -6,15 +6,16 @@ import { exportFileName, serializeCharacter } from '$lib/model/migrate';
 export type ExportResult = 'shared' | 'downloaded' | 'cancelled';
 
 export async function exportCharacterFile(c: Character): Promise<ExportResult> {
-	const name = exportFileName(c);
-	const json = serializeCharacter(c);
-	const blob = new Blob([json], { type: 'application/json' });
+	return saveJsonFile(exportFileName(c), serializeCharacter(c), c.name);
+}
 
-	// Auf iPad/iPhone landet die Datei über das Teilen-Menü z. B. in iCloud Drive.
+/** Speichert JSON per Download bzw. – auf iPad/iPhone – über das Teilen-Menü (z. B. iCloud Drive). */
+export async function saveJsonFile(name: string, json: string, title: string): Promise<ExportResult> {
+	const blob = new Blob([json], { type: 'application/json' });
 	const file = new File([blob], name, { type: 'application/json' });
 	if (prefersShareSheet() && navigator.canShare?.({ files: [file] })) {
 		try {
-			await navigator.share({ files: [file], title: c.name });
+			await navigator.share({ files: [file], title });
 			return 'shared';
 		} catch (e) {
 			if ((e as DOMException)?.name === 'AbortError') return 'cancelled';

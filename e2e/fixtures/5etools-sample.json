@@ -1,0 +1,38 @@
+{
+	"spell": [
+		{
+			"name": "Fireball",
+			"source": "PHB",
+			"page": 241,
+			"level": 3,
+			"school": "V",
+			"time": [{ "number": 1, "unit": "action" }],
+			"range": { "type": "point", "distance": { "type": "feet", "amount": 150 } },
+			"components": { "v": true, "s": true, "m": "a tiny ball of bat guano and sulfur" },
+			"duration": [{ "type": "instant" }],
+			"entries": ["A bright streak flashes from your pointing finger. Each creature takes {@damage 8d6} fire damage on a failed save."]
+		},
+		{
+			"name": "Bless",
+			"source": "PHB",
+			"level": 1,
+			"school": "E",
+			"time": [{ "number": 1, "unit": "action" }],
+			"range": { "type": "point", "distance": { "type": "feet", "amount": 30 } },
+			"components": { "v": true, "s": true, "m": "a sprinkling of holy water" },
+			"duration": [{ "type": "timed", "duration": { "type": "minute", "amount": 1 }, "concentration": true }],
+			"entries": ["You bless up to three creatures of your choice within range."]
+		}
+	],
+	"item": [
+		{
+			"name": "Cloak of Protection",
+			"source": "DMG",
+			"wondrous": true,
+			"rarity": "uncommon",
+			"reqAttune": true,
+			"entries": ["You gain a +1 bonus to AC and saving throws while you wear this cloak."]
+		}
+	],
+	"feat": [{ "name": "Alert", "source": "PHB", "entries": ["Always on the lookout for danger, you gain the following benefits:", { "type": "list", "items": ["You gain a +5 bonus to initiative."] }] }]
+}

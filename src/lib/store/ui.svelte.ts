@@ -30,6 +30,8 @@ class UiState {
 	tab = $state<string>('');
 	/** Bearbeitungsmodus: Bausteine und Tabs anordnen. Spielmodus (Standard) fixiert das Layout. */
 	editMode = $state(false);
+	/** Offener Austausch-Dialog. */
+	dialog = $state<'import' | 'export' | null>(null);
 	toasts = $state<Toast[]>([]);
 	theme = $state<Theme>('system');
 	/** Verlauf-Tab: vorbelegter Filter (z. B. „Historie dieses Feldes“). */

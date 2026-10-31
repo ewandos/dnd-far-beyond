@@ -61,7 +61,7 @@
 							title="Zum Feld springen"
 							onclick={() => target && ui.push({ kind: 'field', id: target.id })}
 						>
-							{target?.name ?? (m.targetFieldId ? 'Gelöschtes Feld' : 'nicht zugeordnet')}
+							{target?.name ?? (m.targetFieldId ? 'Gelöschtes Feld' : 'nicht zugeordnet')}{#if !target && m.importHint}&nbsp;(ursprünglich „{m.importHint}“){/if}
 						</button>
 						{#if m.description && m.description !== c.items[m.source.id]?.name && m.description !== c.abilities[m.source.id]?.name}
 							<span class="desc muted">· {m.description}</span>

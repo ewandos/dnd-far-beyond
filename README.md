@@ -3,7 +3,7 @@
 Digitaler D&D-5e-Charakterbogen für eine Spielgruppe – **digitales Papier mit Transparenz**:
 keine Regel-Engine, aber jeder Zahlenwert ist inspizierbar („Warum habe ich RK 17?“ → ein Tipp).
 
-Umgesetzt sind **Phase 1 (MVP)** und **Phase 2 (freies Layout und Spieltisch)** aus dem Design Document.
+Umgesetzt sind **Phase 1 (MVP)**, **Phase 2 (freies Layout und Spieltisch)** und **Phase 3 (Austausch)** aus dem Design Document.
 
 ## Starten
 
@@ -36,7 +36,7 @@ src/lib/engine/    Reines TypeScript, keine UI-Abhängigkeit
   evaluate.ts      evaluate(character, previous?) – Reihenfolge, Konflikte, Zyklen,
                    inkrementelle Neuberechnung nur abhängiger Felder
 src/lib/model/     Standardcharakter (feste IDs std.*), Startlayout, Raster-Logik,
-                   Historie/Patches, Import/Migration
+                   Historie/Patches, Import/Migration, Austauschformat, 5eTools-Konverter
 src/lib/store/     Svelte-5-Zustand (Runes), Aktionen mit Historie, IndexedDB (Dexie), Dateien
 src/lib/ui/        Komponenten, Layout-Raster und Bausteine, Inspektionspanel,
                    Drag & Drop (Pointer Events)
@@ -72,6 +72,17 @@ src/service-worker.ts  Offline-first-Cache aller App-Dateien
   Zähler pro Grad („Anzahl ändern“ im Baustein). Konzentration lässt sich mit einem Tipp als
   Zustand eintragen.
 - **Verwaltung**: Felder, nicht zugeordnete Modifikatoren, Zähler, Zauberlisten und Notizen.
+- **Austausch** (Phase 3): Items, Fähigkeiten, Zustände und Zauber einzeln (Knopf „Exportieren“
+  in der Karte) oder gesammelt (Verwaltung → Exportieren) als JSON weitergeben. Import über den
+  Upload-Knopf oben: Einträge auswählen, Ziel-Container und Zauberliste wählen. Importiert werden
+  immer Kopien mit neuer ID, die Ursprungs-ID wird gespeichert; ein erneuter Import legt ein
+  zweites Item an. Modifikatoren auf Standardfelder treffen automatisch, alle anderen kommen als
+  „nicht zugeordnet“ an (mit dem ursprünglichen Feldnamen als Hinweis) – die App legt nie selbst
+  Felder an.
+- **5eTools-Import**: 5eTools-JSON mit `spell`, `item`, `baseitem`, `magicvariant` oder `feat`.
+  `entries` werden zu Markdown (Absätze, benannte Abschnitte, Listen, Tabellen, Kästen),
+  Inline-Tags wie `{@damage 1d8}` oder `{@spell fireball}` zu lesbarem Text. Mechanische Angaben
+  werden bewusst nicht zu Modifikatoren.
 
 - **Wert antippen** → Inspektionspanel: Endwert, Basiswert (editierbar), alle Modifikatoren in
   Auswertungsreihenfolge mit Quelle, Formel, aufklappbaren Referenzketten, inaktive
@@ -102,7 +113,6 @@ Layout (Phase 2): ein Raster aus 12 Spalten mit 40 px Zeilenhöhe für Laptop un
 1024 px Breite skaliert die ganze Seite proportional. Charaktere aus Phase 1 (Schema 1) erhalten
 beim Laden das neue Startlayout und die Zauberlisten „Vorbereitet“ und „Bekannt“.
 
-## Noch nicht umgesetzt (Phasen 3–4)
+## Noch nicht umgesetzt (Phase 4)
 
-Austausch einzelner Inhalte und 5eTools-Import, Point-Buy- und Hintergrund-Assistent,
-weitere Feldtypen.
+Point-Buy- und Hintergrund-Assistent, weitere Feldtypen (Würfelausdruck, Liste).

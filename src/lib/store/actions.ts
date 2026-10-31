@@ -17,6 +17,7 @@ import type {
 } from '$lib/engine/types';
 import { formatOp } from '$lib/ui/format';
 import { GROUPS } from '$lib/model/defaults';
+import type { ImportPlan } from '$lib/model/content';
 import { newId } from '$lib/model/ids';
 import { current, sheet, type Change } from './sheet.svelte';
 
@@ -720,4 +721,30 @@ export function deleteSpellList(id: Id) {
 	const l = current().spellLists[id];
 	if (!l) return;
 	sheet.commit({ kind: 'spelllist.delete', target: id, title: `Zauberliste gelöscht: ${l.name}`, changes: [{ path: ['spellLists', id], value: undefined }] });
+}
+
+// ---------------------------------------------------------------------------
+// Austausch einzelner Inhalte
+
+/** Spielt einen Import-Plan als ein einziges Ereignis ein (ein Rückgängig macht alles rückgängig). */
+export function applyImport(plan: ImportPlan, spellListId?: Id) {
+	const c = current();
+	const changes: Change[] = [];
+	for (const x of plan.counters) changes.push({ path: ['counters', x.id], value: x });
+	for (const x of plan.items) changes.push({ path: ['items', x.id], value: x });
+	for (const x of plan.abilities) changes.push({ path: ['abilities', x.id], value: x });
+	for (const x of plan.spells) changes.push({ path: ['spells', x.id], value: x });
+	for (const x of plan.modifiers) changes.push({ path: ['modifiers', x.id], value: x });
+	const list = spellListId ? c.spellLists[spellListId] : undefined;
+	if (list && plan.spells.length) {
+		changes.push({ path: ['spellLists', list.id, 'spellIds'], value: [...list.spellIds, ...plan.spells.map((s) => s.id)] });
+	}
+	const count = plan.items.length + plan.abilities.length + plan.spells.length;
+	const names = [...plan.items, ...plan.abilities, ...plan.spells].map((x) => x.name);
+	sheet.commit({
+		kind: 'content.import',
+		target: c.id,
+		title: count === 1 ? `Importiert: ${names[0]}` : `Importiert: ${count} Inhalte`,
+		changes
+	});
 }

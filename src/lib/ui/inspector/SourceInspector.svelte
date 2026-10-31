@@ -18,6 +18,7 @@
 	import type { AbilityKind } from '$lib/engine/types';
 	import CounterBoxes from '../components/CounterBoxes.svelte';
 	import Icon from '../components/Icon.svelte';
+	import { exportEntries } from '../content/io';
 	import MarkdownEditor from '../components/MarkdownEditor.svelte';
 	import NumberInput from '../components/NumberInput.svelte';
 	import Switch from '../components/Switch.svelte';
@@ -192,6 +193,7 @@
 		{/if}
 
 		<footer>
+			<button type="button" class="btn ghost small" title="Als Datei für andere Spieler" onclick={() => exportEntries([{ type: kind, id }])}><Icon name="download" size={16} /> Exportieren</button>
 			{#if item?.originId || ability?.originId}
 				<span class="muted small">Importierte Kopie</span>
 			{/if}

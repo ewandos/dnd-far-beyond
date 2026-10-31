@@ -66,6 +66,15 @@
 </script>
 
 <div class="fields">
+	<section class="card pad exchange">
+		<div>
+			<h2 class="section-title">Austausch</h2>
+			<p class="muted small">Items, Fähigkeiten, Zustände und Zauber als Datei weitergeben oder vom SL bzw. aus 5eTools übernehmen.</p>
+		</div>
+		<button type="button" class="btn" onclick={() => (ui.dialog = 'import')}><Icon name="upload" size={18} /> Importieren</button>
+		<button type="button" class="btn" onclick={() => (ui.dialog = 'export')}><Icon name="download" size={18} /> Exportieren</button>
+	</section>
+
 	<section class="card pad">
 		<h2 class="section-title">Eigenes Feld anlegen</h2>
 		<form
@@ -95,7 +104,7 @@
 			<p class="muted small">Diese Modifikatoren haben kein (existierendes) Zielfeld. Feld wählen oder löschen.</p>
 			{#each unassigned as m (m.id)}
 				<div class="unassigned">
-					<span class="desc">{m.description || 'Modifikator'} <span class="muted">({sourceName(m) ?? 'Quelle fehlt'}) · {OP_SYMBOL[m.op]} {toDisplayExpr(m.expr, Object.values(c.fields))}</span></span>
+					<span class="desc">{m.description || 'Modifikator'}{#if m.importHint} <span class="hint">→ ursprünglich „{m.importHint}“</span>{/if} <span class="muted">({sourceName(m) ?? 'Quelle fehlt'}) · {OP_SYMBOL[m.op]} {toDisplayExpr(m.expr, Object.values(c.fields))}</span></span>
 					<FieldSelect value={null} onchange={(v) => v && updateModifier(m.id, { targetFieldId: v })} label="Zielfeld wählen" noneLabel="Feld wählen …" />
 					<button type="button" class="btn ghost danger small icon" aria-label="Modifikator löschen" onclick={() => deleteModifier(m.id)}><Icon name="trash" size={16} /></button>
 				</div>
@@ -225,6 +234,18 @@
 	}
 	.warn {
 		border-color: var(--accent);
+	}
+	.exchange {
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+	}
+	.exchange > div {
+		flex: 1;
+	}
+	.hint {
+		color: var(--accent);
+		font-size: 13px;
 	}
 	.create {
 		display: flex;

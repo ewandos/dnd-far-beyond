@@ -4,6 +4,7 @@
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { ui } from '$lib/store/ui.svelte';
 	import Icon from '../components/Icon.svelte';
+	import { exportEntries } from '../content/io';
 	import MarkdownEditor from '../components/MarkdownEditor.svelte';
 
 	let { id }: { id: string } = $props();
@@ -105,6 +106,7 @@
 		</label>
 
 		<footer>
+			<button type="button" class="btn ghost small" title="Als Datei für andere Spieler" onclick={() => exportEntries([{ type: 'spell', id }])}><Icon name="download" size={16} /> Exportieren</button>
 			{#if s.originId}<span class="muted small">Importierte Kopie</span>{/if}
 			<span class="spacer"></span>
 			{#if confirmDelete}

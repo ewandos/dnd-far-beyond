@@ -60,6 +60,8 @@ export interface Modifier {
 	description: string;
 	source: { kind: SourceKind; id: Id };
 	order: number;
+	/** Bei importierten Modifikatoren: Name des ursprünglichen Zielfelds (Hilfe beim Zuordnen). */
+	importHint?: string;
 }
 
 export interface Item {
