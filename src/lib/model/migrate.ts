@@ -1,7 +1,7 @@
 // Einlesen und Migrieren von Charakter-Dateien.
 
 import { SCHEMA_VERSION, type Character } from '../engine/types';
-import { defaultLayout, defaultSpellLists } from './defaults';
+import { actionsTab, defaultLayout, defaultSpellLists, standardActions, STD_SPELLLIST_PREPARED } from './defaults';
 
 export class ImportError extends Error {}
 
@@ -18,6 +18,17 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
 				: defaultSpellLists();
 		const texts = (raw.texts && typeof raw.texts === 'object' ? raw.texts : {}) as Character['texts'];
 		return { ...raw, schemaVersion: 2, spellLists, layout: defaultLayout({ texts, spellLists }) };
+	},
+	// Aktionsübersicht: Standardaktionen und – ohne bestehendes Layout zu verändern – ein neuer Tab am Ende.
+	2: (raw) => {
+		const actions = raw.actions && typeof raw.actions === 'object' && Object.keys(raw.actions).length ? raw.actions : standardActions();
+		const layout = (raw.layout && typeof raw.layout === 'object' ? raw.layout : { tabs: [] }) as Character['layout'];
+		const tabs = Array.isArray(layout.tabs) ? layout.tabs : [];
+		const hasBlock = tabs.some((t) => t.blocks?.some((b) => b.type === 'actions'));
+		const lists = (raw.spellLists ?? {}) as Character['spellLists'];
+		const nextOrder = tabs.reduce((m, t) => Math.max(m, t.order ?? 0), -1) + 1;
+		const nextTabs = hasBlock ? tabs : [...tabs, actionsTab(nextOrder, lists[STD_SPELLLIST_PREPARED] ? STD_SPELLLIST_PREPARED : undefined)];
+		return { ...raw, schemaVersion: 3, actions, layout: { ...layout, tabs: nextTabs } };
 	}
 };
 
@@ -31,7 +42,8 @@ const RECORDS = [
 	'counters',
 	'spells',
 	'spellLists',
-	'texts'
+	'texts',
+	'actions'
 ] as const;
 
 export function migrateCharacter(input: unknown): Character {

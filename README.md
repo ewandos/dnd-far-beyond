@@ -76,6 +76,18 @@ src/service-worker.ts  Offline-first-Cache aller App-Dateien
   „Vorbereitet“, „Bekannt“); ein Zauber kann in mehreren Listen stehen. Zauberplätze sind
   Zähler pro Grad („Anzahl ändern“ im Baustein). Konzentration lässt sich mit einem Tipp als
   Zustand eintragen.
+- **Aktionsübersicht** (Tab „Aktionen“, als Baustein überall platzierbar): Spalten für Aktionen,
+  Bonusaktionen, Reaktionen und Sonstiges. Einträge kommen aus drei Quellen:
+  - eigene Aktionen, frei oder an einem Item bzw. einer Fähigkeit („Aktion hinzufügen“ in der
+    Karte, z. B. „Angriff: Langschwert“). Aktionen an Items sind nur verfügbar, solange das Item
+    ausgerüstet ist; sonst stehen sie ausgegraut mit Grund da;
+  - Zauber aus gewählten Listen (Standard: „Vorbereitet“). Die Art folgt dem Zeitaufwand
+    („1 Bonusaktion“ → Bonusaktionen) und lässt sich in der Zauberkarte überschreiben;
+  - allgemeine Aktionen wie Spurt, Ausweichen oder Gelegenheitsangriff (abschaltbar, löschbar).
+  Angriffsbonus, Schaden und Rettungswurf-SG sind optionale Formeln wie bei Modifikatoren
+  (`@STR-Mod + @Übungsbonus`, `1d8 + @STR-Mod`) und erscheinen aufgelöst. Gewürfelt wird nicht.
+  Aktionen an Items und Fähigkeiten reisen beim Austausch mit; 5eTools-Waffen bringen eine
+  Angriffsaktion mit Schadenswürfel mit (den Angriffsbonus trägt man selbst ein).
 - **Verwaltung**: Felder, nicht zugeordnete Modifikatoren, Zähler, Zauberlisten und Notizen.
 - **Austausch** (Phase 3): Items, Fähigkeiten, Zustände und Zauber einzeln (Knopf „Exportieren“
   in der Karte) oder gesammelt (Verwaltung → Exportieren) als JSON weitergeben. Import über den
@@ -126,6 +138,9 @@ src/service-worker.ts  Offline-first-Cache aller App-Dateien
 Weitere Festlegungen: Bewegungsrate in Metern (Basis 9), schnelle Folgeänderungen am selben
 Wert werden innerhalb von 3 s zu einem Verlaufseintrag zusammengefasst, Import mit bereits
 vorhandener Charakter-ID fragt „Ersetzen“ oder „Als Kopie“.
+
+Aktionsübersicht: Schema 3. Bestehende Charaktere erhalten die allgemeinen Aktionen und einen
+neuen Tab „Aktionen“ am Ende – ihr eigenes Layout bleibt unverändert.
 
 Layout (Phase 2): ein Raster aus 12 Spalten mit 40 px Zeilenhöhe für Laptop und iPad. Unter
 1024 px Breite skaliert die ganze Seite proportional. Charaktere aus Phase 1 (Schema 1) erhalten

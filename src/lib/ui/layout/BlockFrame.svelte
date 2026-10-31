@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Block, CardListBlockConfig, ContainerBlockConfig, CounterBlockConfig, FieldBlockConfig, FieldGroupBlockConfig, TextBlockConfig } from '$lib/engine/types';
+	import type { ActionsBlockConfig, Block, CardListBlockConfig, ContainerBlockConfig, CounterBlockConfig, FieldBlockConfig, FieldGroupBlockConfig, TextBlockConfig } from '$lib/engine/types';
 	import { sheet } from '$lib/store/sheet.svelte';
 	import { blockTitle } from './blocks';
 	import CardListBlock from './CardListBlock.svelte';
@@ -8,6 +8,7 @@
 	import FieldBlock from './FieldBlock.svelte';
 	import FieldGroupBlock from './FieldGroupBlock.svelte';
 	import TextBlock from './TextBlock.svelte';
+	import ActionsBlock from './ActionsBlock.svelte';
 
 	let { block }: { block: Block } = $props();
 	const title = $derived(sheet.character ? blockTitle(sheet.character, block) : null);
@@ -22,6 +23,7 @@
 		{:else if block.type === 'container'}<ContainerBlock config={block.config as unknown as ContainerBlockConfig} />
 		{:else if block.type === 'cardList'}<CardListBlock config={block.config as unknown as CardListBlockConfig} />
 		{:else if block.type === 'text'}<TextBlock config={block.config as unknown as TextBlockConfig} />
+		{:else if block.type === 'actions'}<ActionsBlock config={block.config as ActionsBlockConfig} />
 		{/if}
 	</div>
 </section>

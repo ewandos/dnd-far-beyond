@@ -13,7 +13,8 @@ export const BLOCK_LABEL: Record<BlockType, string> = {
 	counter: 'Kästchen / Zähler',
 	container: 'Container',
 	cardList: 'Karten-Liste',
-	text: 'Textblock'
+	text: 'Textblock',
+	actions: 'Aktionsübersicht'
 };
 
 export function sortedTabs(): Tab[] {

@@ -63,6 +63,24 @@ describe('Austausch einzelner Inhalte', () => {
 		expect(ev.unassigned).toEqual([ruhmMod.id]);
 	});
 
+	it('Aktionen am Item reisen mit und hängen am importierten Item', () => {
+		const c = sl();
+		c.counters.ak = { id: 'ak', name: 'Nutzungen: Stoß', max: 1, checked: 1, order: 60 };
+		c.actions.stoss = { id: 'stoss', name: 'Machtstoß', kind: 'bonus', source: { kind: 'item', id: 'mantel' }, description: 'Weg da!', damage: '1d6', counterId: 'ak', order: 0 };
+		c.actions.frei = { id: 'frei', name: 'Frei', kind: 'action', description: '', order: 1 };
+		const file = exportContent(c, [{ type: 'item', id: 'mantel' }]);
+		const entry = file.entries[0] as Extract<ContentEntry, { type: 'item' }>;
+		expect(entry.actions?.map((a) => a.action.name)).toEqual(['Machtstoß']);
+		expect(entry.actions?.[0].action).not.toHaveProperty('source');
+
+		const player = createDefaultCharacter();
+		const plan = planImport(player, readContentFile(JSON.parse(JSON.stringify(file))), { containerId: STD.backpack }, ids);
+		expect(plan.actions).toHaveLength(1);
+		expect(plan.actions[0]).toMatchObject({ name: 'Machtstoß', kind: 'bonus', originId: 'stoss', damage: '1d6', source: { kind: 'item', id: plan.items[0].id } });
+		const counter = plan.counters.find((x) => x.id === plan.actions[0].counterId);
+		expect(counter).toMatchObject({ max: 1, checked: 0 });
+	});
+
 	it('erneuter Import erzeugt ein zweites Item', () => {
 		const file = exportContent(sl(), [{ type: 'item', id: 'mantel' }]);
 		const player = createDefaultCharacter();

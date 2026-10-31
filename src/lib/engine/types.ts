@@ -3,7 +3,7 @@
 
 export type Id = string;
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export interface Character {
 	schemaVersion: number;
@@ -20,6 +20,8 @@ export interface Character {
 	spells: Record<Id, Spell>;
 	spellLists: Record<Id, SpellList>;
 	texts: Record<Id, TextNote>;
+	/** Aktionen, Bonusaktionen, Reaktionen und Sonstiges – frei oder an einem Item bzw. einer Fähigkeit. */
+	actions: Record<Id, CharAction>;
 	layout: Layout;
 	history: HistoryEvent[];
 }
@@ -138,6 +140,41 @@ export interface Spell {
 	concentration?: boolean;
 	ritual?: boolean;
 	notes?: string;
+	/** Art in der Aktionsübersicht; leer = aus dem Zeitaufwand abgeleitet, 'none' = nicht aufführen. */
+	economy?: ActionKind | 'none';
+	/** Angriff, Schaden, Rettungswurf – optional, für die Aktionsübersicht. */
+	stats?: ActionStats;
+}
+
+export type ActionKind = 'action' | 'bonus' | 'reaction' | 'other';
+
+/** Werte einer Aktion. Formeln wie bei Modifikatoren, Referenzen als @[fieldId]. */
+export interface ActionStats {
+	/** Angriffsbonus (Zahlenformel), z. B. „@[std.str_mod] + @[std.prof]“. */
+	attack?: string;
+	/** Schaden (Würfelausdruck), z. B. „1d8 + @[std.str_mod]“. */
+	damage?: string;
+	damageType?: string;
+	/** Rettungswurf-SG (Zahlenformel) und Attribut als Text. */
+	saveDc?: string;
+	saveAbility?: string;
+}
+
+export interface CharAction extends ActionStats {
+	id: Id;
+	originId?: Id;
+	name: string;
+	kind: ActionKind;
+	/** Gehört zu einem Item oder einer Fähigkeit; wirkt nur, wenn die Quelle aktiv ist. */
+	source?: { kind: 'item' | 'ability'; id: Id };
+	description: string;
+	range?: string;
+	/** Auslöser bei Reaktionen. */
+	trigger?: string;
+	counterId?: Id;
+	/** Allgemeine Aktion, die jeder Charakter hat (Spurt, Ausweichen …). */
+	standard?: boolean;
+	order: number;
 }
 
 export interface SpellList {
@@ -166,7 +203,7 @@ export interface Tab {
 	blocks: Block[];
 }
 
-export type BlockType = 'field' | 'fieldGroup' | 'counter' | 'container' | 'cardList' | 'text';
+export type BlockType = 'field' | 'fieldGroup' | 'counter' | 'container' | 'cardList' | 'text' | 'actions';
 
 export interface Block {
 	id: Id;
@@ -212,6 +249,15 @@ export interface CardListBlockConfig {
 	/** Bei kind = 'spells': die Zauberliste; leer = alle Zauber. */
 	spellListId?: Id;
 	showDescriptions?: boolean;
+}
+
+export interface ActionsBlockConfig {
+	/** Welche Arten gezeigt werden; leer = alle. */
+	kinds?: ActionKind[];
+	/** Zauber aus diesen Listen erscheinen als Aktionen; leer = keine Zauber. */
+	spellListIds?: Id[];
+	showStandard?: boolean;
+	hideInactive?: boolean;
 }
 
 export interface TextBlockConfig {

@@ -5,6 +5,7 @@
 	import FieldInspector from './FieldInspector.svelte';
 	import SourceInspector from './SourceInspector.svelte';
 	import SpellInspector from './SpellInspector.svelte';
+	import ActionInspector from './ActionInspector.svelte';
 
 	const c = $derived(sheet.character);
 	const prevLabel = $derived.by(() => {
@@ -13,6 +14,7 @@
 		if (p.kind === 'field') return c.fields[p.id]?.name ?? 'Zurück';
 		if (p.kind === 'item') return c.items[p.id]?.name ?? 'Zurück';
 		if (p.kind === 'spell') return c.spells[p.id]?.name ?? 'Zurück';
+		if (p.kind === 'action') return c.actions[p.id]?.name ?? 'Zurück';
 		return c.abilities[p.id]?.name ?? 'Zurück';
 	});
 	let scroller: HTMLDivElement | undefined = $state();
@@ -53,6 +55,8 @@
 					<FieldInspector id={ui.panel.id} />
 				{:else if ui.panel.kind === 'spell'}
 					<SpellInspector id={ui.panel.id} />
+				{:else if ui.panel.kind === 'action'}
+					<ActionInspector id={ui.panel.id} />
 				{:else}
 					<SourceInspector kind={ui.panel.kind} id={ui.panel.id} />
 				{/if}

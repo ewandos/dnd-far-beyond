@@ -21,7 +21,8 @@ describe('Standardcharakter', () => {
 		expect(c.containers[STD.equipped].equipped).toBe(true);
 		expect(c.containers[STD.backpack].equipped).toBe(false);
 		expect(Object.values(c.counters).filter((x) => x.group === 'Zauberplätze')).toHaveLength(9);
-		expect(c.layout.tabs.map((t) => t.name)).toEqual(['Übersicht', 'Inventar', 'Fähigkeiten', 'Zauber', 'Notizen']);
+		expect(c.layout.tabs.map((t) => t.name)).toEqual(['Übersicht', 'Aktionen', 'Inventar', 'Fähigkeiten', 'Zauber', 'Notizen']);
+		expect(Object.values(c.actions).filter((a) => a.standard).map((a) => a.name)).toContain('Gelegenheitsangriff');
 	});
 
 	it('rechnet ohne Fehler', () => {
@@ -65,11 +66,25 @@ describe('Charakter-Datei', () => {
 		v1.layout = { tabs: [{ id: 'x', name: 'Übersicht', hidden: false, order: 0, blocks: [] }] };
 		(v1.items as Record<string, unknown>).weg = { id: 'weg', name: 'Verwaist', description: '', quantity: 1, requiresAttunement: false, containerId: 'gibtsnicht', order: 0 };
 		const c = parseCharacterFile(JSON.stringify(v1));
-		expect(c.schemaVersion).toBe(2);
+		expect(c.schemaVersion).toBe(3);
 		expect(Object.values(c.spellLists).map((l) => l.name)).toEqual(['Vorbereitet', 'Bekannt']);
-		expect(c.layout.tabs.map((t) => t.name)).toEqual(['Übersicht', 'Inventar', 'Fähigkeiten', 'Zauber', 'Notizen']);
+		expect(c.layout.tabs.map((t) => t.name)).toEqual(['Übersicht', 'Aktionen', 'Inventar', 'Fähigkeiten', 'Zauber', 'Notizen']);
 		expect(c.layout.tabs[0].blocks.length).toBeGreaterThan(5);
 		expect(c.items.weg.containerId).toBe(STD.equipped);
+	});
+
+	it('migriert Version 2: Aktions-Tab wird angehängt, eigenes Layout bleibt', () => {
+		const v2 = createDefaultCharacter('Zwei') as unknown as Record<string, unknown>;
+		v2.schemaVersion = 2;
+		delete v2.actions;
+		v2.layout = { tabs: [{ id: 'mein', name: 'Mein Bogen', hidden: false, order: 0, blocks: [{ id: 'b', type: 'text', x: 0, y: 0, w: 6, h: 4, config: {} }] }] };
+		const c = parseCharacterFile(JSON.stringify(v2));
+		expect(c.schemaVersion).toBe(3);
+		expect(c.layout.tabs.map((t) => [t.name, t.order])).toEqual([['Mein Bogen', 0], ['Aktionen', 1]]);
+		expect(c.layout.tabs[1].blocks[0]).toMatchObject({ type: 'actions', config: { spellListIds: ['std.spelllist.prepared'] } });
+		expect(Object.keys(c.actions).length).toBeGreaterThan(5);
+		// Erneutes Laden fügt nichts doppelt hinzu
+		expect(parseCharacterFile(JSON.stringify(c)).layout.tabs).toHaveLength(2);
 	});
 
 	it('lehnt kaputte oder zu neue Dateien mit verständlicher Meldung ab', () => {

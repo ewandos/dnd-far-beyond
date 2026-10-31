@@ -6,7 +6,8 @@ export type Panel =
 	| { kind: 'field'; id: Id }
 	| { kind: 'item'; id: Id }
 	| { kind: 'ability'; id: Id }
-	| { kind: 'spell'; id: Id };
+	| { kind: 'spell'; id: Id }
+	| { kind: 'action'; id: Id };
 
 /** Feste Verwaltungsseiten neben den frei gestaltbaren Layout-Tabs. */
 export const SYSTEM_TABS = [

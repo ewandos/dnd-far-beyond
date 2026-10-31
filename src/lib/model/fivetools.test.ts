@@ -109,6 +109,9 @@ describe('5eTools-Dateien', () => {
 		expect(cloak.item.description).toMatch(/^\*Wondrous item, uncommon \(requires attunement\)\*/);
 		expect(cloak.modifiers).toEqual([]);
 		expect(sword.item.description).toContain('Damage: 1d8 slashing (versatile 1d10)');
+		expect(sword.actions?.[0].action).toMatchObject({ name: 'Angriff: Longsword', kind: 'action', damage: '1d8', damageType: 'slashing' });
+		expect(sword.actions?.[0].action.attack).toBeUndefined();
+		expect(cloak.actions).toBeUndefined();
 		expect(variant.item.description).toContain('+1 to attack and damage rolls');
 		expect(variant.item.description).toContain('You have a +1 bonus.');
 		expect(alert.ability).toMatchObject({ name: 'Alert', origin: 'Talent', kind: 'ability' });

@@ -7,6 +7,7 @@ import {
 	type Character,
 	type Container,
 	type Counter,
+	type CharAction,
 	type Field,
 	type Layout,
 	type Modifier,
@@ -218,6 +219,7 @@ export function createDefaultCharacter(name = 'Neuer Charakter'): Character {
 		spells: {},
 		spellLists,
 		texts,
+		actions: standardActions(),
 		layout: defaultLayout({ texts, spellLists }),
 		history: []
 	};
@@ -258,18 +260,19 @@ export function defaultLayout(c: Pick<Character, 'texts' | 'spellLists'>): Layou
 				block('cardList', 6, 11, 6, 4, { kind: 'condition' }),
 				block('cardList', 6, 15, 6, 5, { kind: 'equipped' })
 			]),
-			tab('std.tab.inventory', 'Inventar', 1, [
+			actionsTab(1, lists.find((l) => l.id === STD_SPELLLIST_PREPARED)?.id),
+			tab('std.tab.inventory', 'Inventar', 2, [
 				block('fieldGroup', 0, 0, 8, 3, { group: GROUPS.currency, display: 'tiles' }),
 				block('field', 8, 0, 2, 3, { fieldId: STD.attuned }),
 				block('field', 10, 0, 2, 3, { fieldId: STD.attunementLimit }),
 				block('container', 0, 3, 6, 10, { containerId: STD.equipped }),
 				block('container', 6, 3, 6, 10, { containerId: STD.backpack })
 			]),
-			tab('std.tab.abilities', 'Fähigkeiten', 2, [
+			tab('std.tab.abilities', 'Fähigkeiten', 3, [
 				block('cardList', 0, 0, 6, 16, { kind: 'ability', showDescriptions: true }),
 				block('cardList', 6, 0, 6, 16, { kind: 'condition', showDescriptions: true })
 			]),
-			tab('std.tab.spells', 'Zauber', 3, [
+			tab('std.tab.spells', 'Zauber', 4, [
 				block('fieldGroup', 0, 0, 4, 3, { group: GROUPS.magic, display: 'tiles' }),
 				block('counter', 0, 3, 4, 6, { group: 'Zauberplätze' }, 'Zauberplätze'),
 				...lists.map((l, i) => block('cardList', 4, i * 8, 8, 8, { kind: 'spells', spellListId: l.id }))
@@ -277,11 +280,55 @@ export function defaultLayout(c: Pick<Character, 'texts' | 'spellLists'>): Layou
 			tab(
 				'std.tab.notes',
 				'Notizen',
-				4,
+				5,
 				texts.map((t, i) => block('text', (i % 2) * 6, Math.floor(i / 2) * 8, 6, 8, { textId: t.id }))
 			)
 		]
 	};
+}
+
+export const STD_SPELLLIST_PREPARED = 'std.spelllist.prepared';
+
+/** Tab „Aktionen“ mit der Aktionsübersicht; Zauber aus „Vorbereitet“ erscheinen mit. */
+export function actionsTab(order: number, preparedListId?: string): Tab {
+	return {
+		id: 'std.tab.actions',
+		name: 'Aktionen',
+		hidden: false,
+		order,
+		blocks: [
+			{
+				id: 'std.block.actions',
+				type: 'actions',
+				x: 0,
+				y: 0,
+				w: 12,
+				h: 16,
+				config: { spellListIds: preparedListId ? [preparedListId] : [], showStandard: true }
+			}
+		]
+	};
+}
+
+/** Allgemeine Aktionen, die jeder Charakter hat – frei änder- und löschbar. */
+export function standardActions(): Record<string, CharAction> {
+	const list: [string, string, CharAction['kind'], string][] = [
+		['dash', 'Spurt', 'action', 'Zusätzliche Bewegung in Höhe deiner Bewegungsrate für diesen Zug.'],
+		['disengage', 'Rückzug', 'action', 'Deine Bewegung provoziert in diesem Zug keine Gelegenheitsangriffe.'],
+		['dodge', 'Ausweichen', 'action', 'Bis zu deinem nächsten Zug sind Angriffe gegen dich im Nachteil, GES-Rettungswürfe im Vorteil.'],
+		['help', 'Helfen', 'action', 'Ein Verbündeter erhält Vorteil auf seinen nächsten Wurf für eine Aufgabe oder einen Angriff.'],
+		['hide', 'Verstecken', 'action', 'Würfle auf Heimlichkeit, um dich zu verbergen.'],
+		['ready', 'Vorbereiten', 'action', 'Lege einen Auslöser fest; wenn er eintritt, handelst du mit deiner Reaktion.'],
+		['search', 'Suchen', 'action', 'Richte deine Aufmerksamkeit darauf, etwas zu finden (Wahrnehmung oder Nachforschungen).'],
+		['use', 'Gegenstand benutzen', 'action', 'Einen Gegenstand verwenden, der dafür eine Aktion braucht.'],
+		['opportunity', 'Gelegenheitsangriff', 'reaction', 'Wenn eine Kreatur deine Reichweite verlässt: ein Nahkampfangriff gegen sie.']
+	];
+	return Object.fromEntries(
+		list.map(([key, name, kind, description], i) => [
+			`std.action.${key}`,
+			{ id: `std.action.${key}`, name, kind, description, standard: true, order: i, ...(kind === 'reaction' ? { trigger: 'Eine Kreatur verlässt deine Reichweite.' } : {}) }
+		])
+	);
 }
 
 export function defaultSpellLists(): Record<string, SpellList> {

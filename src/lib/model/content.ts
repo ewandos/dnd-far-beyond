@@ -1,7 +1,7 @@
 // Austauschformat für einzelne Inhalte (Items, Fähigkeiten, Zustände, Zauber).
 // Das Format ist das interne Datenmodell – kein 5eTools. Import erzeugt immer Kopien mit neuer ID.
 
-import type { Ability, Character, Counter, Id, Item, Modifier, Spell } from '../engine/types';
+import type { Ability, CharAction, Character, Counter, Id, Item, Modifier, Spell } from '../engine/types';
 import { parseExpr } from '../engine/formula';
 
 export const CONTENT_FILE_KIND = 'dnd-charakterbogen/content';
@@ -15,6 +15,8 @@ export type ContentEntry =
 			counter?: Counter;
 			/** Namen der Felder, auf die Modifikatoren zielen oder verweisen – zur Orientierung beim Zuordnen. */
 			fieldNames: Record<Id, string>;
+			/** Aktionen am Item, z. B. „Angriff“. */
+			actions?: AttachedAction[];
 	  }
 	| {
 			type: 'ability';
@@ -22,8 +24,14 @@ export type ContentEntry =
 			modifiers: Modifier[];
 			counter?: Counter;
 			fieldNames: Record<Id, string>;
+			actions?: AttachedAction[];
 	  }
 	| { type: 'spell'; spell: Spell };
+
+export interface AttachedAction {
+	action: Omit<CharAction, 'source' | 'order'>;
+	counter?: Counter;
+}
 
 export interface ContentFile {
 	kind: typeof CONTENT_FILE_KIND;
@@ -56,6 +64,17 @@ function modifiersOf(c: Character, kind: 'item' | 'ability', id: Id): Modifier[]
 		.map(clone);
 }
 
+function actionsOf(c: Character, kind: 'item' | 'ability', id: Id): AttachedAction[] {
+	return Object.values(c.actions ?? {})
+		.filter((a) => a.source?.kind === kind && a.source.id === id)
+		.sort((a, b) => a.order - b.order)
+		.map((a) => {
+			const { source: _s, order: _o, ...action } = clone(a);
+			const counter = a.counterId && c.counters[a.counterId] ? clone(c.counters[a.counterId]) : undefined;
+			return { action, ...(counter ? { counter } : {}) };
+		});
+}
+
 function namesFor(c: Character, mods: Modifier[]): Record<Id, string> {
 	const names: Record<Id, string> = {};
 	for (const m of mods) {
@@ -73,12 +92,14 @@ export function exportContent(c: Character, refs: ContentRef[]): ContentFile {
 			const { containerId: _c, order: _o, ...item } = clone(c.items[ref.id]);
 			const modifiers = modifiersOf(c, 'item', ref.id);
 			const counter = item.counterId ? clone(c.counters[item.counterId]) : undefined;
-			entries.push({ type: 'item', item, modifiers, ...(counter ? { counter } : {}), fieldNames: namesFor(c, modifiers) });
+			const actions = actionsOf(c, 'item', ref.id);
+			entries.push({ type: 'item', item, modifiers, ...(counter ? { counter } : {}), fieldNames: namesFor(c, modifiers), ...(actions.length ? { actions } : {}) });
 		} else if (ref.type === 'ability' && c.abilities[ref.id]) {
 			const { order: _o, ...ability } = clone(c.abilities[ref.id]);
 			const modifiers = modifiersOf(c, 'ability', ref.id);
 			const counter = ability.counterId ? clone(c.counters[ability.counterId]) : undefined;
-			entries.push({ type: 'ability', ability, modifiers, ...(counter ? { counter } : {}), fieldNames: namesFor(c, modifiers) });
+			const actions = actionsOf(c, 'ability', ref.id);
+			entries.push({ type: 'ability', ability, modifiers, ...(counter ? { counter } : {}), fieldNames: namesFor(c, modifiers), ...(actions.length ? { actions } : {}) });
 		} else if (ref.type === 'spell' && c.spells[ref.id]) {
 			entries.push({ type: 'spell', spell: clone(c.spells[ref.id]) });
 		}
@@ -146,6 +167,7 @@ export interface ImportPlan {
 	spells: Spell[];
 	modifiers: Modifier[];
 	counters: Counter[];
+	actions: CharAction[];
 	/** Modifikatoren ohne passendes Zielfeld beim Spieler. */
 	unassigned: number;
 }
@@ -158,7 +180,8 @@ const nextOrder = (rec: Record<string, { order: number }>) => Object.values(rec)
  * Die App legt dabei nie selbst Felder an.
  */
 export function planImport(c: Character, entries: ContentEntry[], opts: ImportOptions, newId: () => Id): ImportPlan {
-	const plan: ImportPlan = { items: [], abilities: [], spells: [], modifiers: [], counters: [], unassigned: 0 };
+	const plan: ImportPlan = { items: [], abilities: [], spells: [], modifiers: [], counters: [], actions: [], unassigned: 0 };
+	let actionOrder = nextOrder(c.actions ?? {});
 	let itemOrder = nextOrder(c.items);
 	let abilityOrder = nextOrder(c.abilities);
 	let modOrder = nextOrder(c.modifiers);
@@ -193,6 +216,24 @@ export function planImport(c: Character, entries: ContentEntry[], opts: ImportOp
 		}
 	};
 
+	const copyActions = (list: AttachedAction[] | undefined, source: NonNullable<CharAction['source']>) => {
+		for (const x of list ?? []) {
+			if (!x?.action || typeof x.action.name !== 'string') continue;
+			const { counterId: _old, ...rest } = clone(x.action);
+			const counterId = copyCounter(x.counter);
+			plan.actions.push({
+				...rest,
+				id: newId(),
+				originId: x.action.originId ?? x.action.id,
+				kind: ['action', 'bonus', 'reaction', 'other'].includes(rest.kind) ? rest.kind : 'action',
+				description: rest.description ?? '',
+				source,
+				order: actionOrder++,
+				...(counterId ? { counterId } : {})
+			});
+		}
+	};
+
 	for (const e of entries) {
 		if (e.type === 'item') {
 			const id = newId();
@@ -210,6 +251,7 @@ export function planImport(c: Character, entries: ContentEntry[], opts: ImportOp
 				...(counterId ? { counterId } : {})
 			});
 			copyModifiers(e.modifiers, { kind: 'item', id }, e.fieldNames);
+			copyActions(e.actions, { kind: 'item', id });
 		} else if (e.type === 'ability') {
 			const id = newId();
 			const counterId = copyCounter(e.counter);
@@ -225,6 +267,7 @@ export function planImport(c: Character, entries: ContentEntry[], opts: ImportOp
 				...(counterId ? { counterId } : {})
 			});
 			copyModifiers(e.modifiers, { kind: 'ability', id }, e.fieldNames);
+			copyActions(e.actions, { kind: 'ability', id });
 		} else {
 			plan.spells.push({ ...clone(e.spell), id: newId(), originId: e.spell.originId ?? e.spell.id });
 		}

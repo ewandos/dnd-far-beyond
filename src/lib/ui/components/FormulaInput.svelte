@@ -154,11 +154,14 @@
 					active = (active - 1 + suggestions.length) % suggestions.length;
 					return;
 				}
-				if (e.key === 'Enter' || e.key === 'Tab') {
+				// Steht der Feldname schon vollständig da, speichert Enter die Formel statt zu ergänzen.
+				const complete = suggestions[active].name.toLowerCase() === query.q.trim().toLowerCase();
+				if (e.key === 'Tab' || (e.key === 'Enter' && !complete)) {
 					e.preventDefault();
 					choose(suggestions[active].id);
 					return;
 				}
+				if (e.key === 'Enter') query = null;
 				if (e.key === 'Escape') {
 					e.preventDefault();
 					e.stopPropagation();
